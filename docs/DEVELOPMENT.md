@@ -1,193 +1,270 @@
-# 💻 DEVELOPMENT Guide — Coding Rules & Workflow
+# 💻 DEVELOPMENT Guide — Game Development Workflow
 
-> **For AI Agents**: Load this document for daily coding tasks, architecture compliance, and best practices.
+> **For AI Agents**: Load this document for game development tasks, coding patterns, and best practices based on IDEA.md.
 
 ---
 
-## 🧱 Architecture: Layered Clean/MVVM
+## 🏗️ Architecture: Game-Centric
 
-### Strict Dependency Rule
+### Data Flow
 ```
-Presentation  →  Domain  ←  Data
-   (UI/VM)     (Pure Logic)   (Repo/Storage)
+User Action → Game State → Use Case → Repository → Persistence
+     ↑                                                        ↓
+     └────────── UI Update ← State Update ← Result ───────────┘
 ```
-- **Inner layers NEVER import from outer layers**
-- Domain has **zero external dependencies** (no React, no Next.js, no APIs)
 
 ### Layer Responsibilities
 
-| Layer | Location | What Goes Here | Dependencies |
-|---|---|---|---|
-| **Presentation** | `features/*/presentation/`, `app/`, `components/` | UI components, pages, ViewModels, state | Domain layer only |
-| **Domain** | `domain/`, `features/*/domain/` | Entities, Use Cases, Repository Interfaces, Types | **NONE** — pure TypeScript |
-| **Data** | `data/`, `features/*/data/` | Repository implementations, API clients, storage | Domain layer only |
+| Layer | Location | What Goes Here |
+|---|---|---|
+| **Presentation** | `components/`, `features/*/presentation/` | UI, state management, input handlers |
+| **Domain** | `domain/`, `features/*/domain/` | Game entities, use cases, business rules |
+| **Data** | `data/`, `features/*/data/` | API clients, local storage, sync logic |
+
+### Key Principles
+- **Single source of truth**: Player document holds complete state
+- **Unidirectional flow**: State changes flow in one direction
+- **Predictable progression**: Level → cap increases, gear provides bonuses
 
 ---
 
-## 📁 Folder Structure
+## 📁 Recommended Project Structure
 
-### Feature-Based Organization (Recommended)
 ```
-features/todo/
-├── domain/
-│   ├── entity.ts              # Pure data + validation
-│   ├── use-cases.ts           # Single-purpose business logic
-│   └── repo-interface.ts      # Abstract contract
-├── data/
-│   └── repo-impl.ts           # Implements domain interface
-└── presentation/
-    ├── page.tsx               # Next.js page
-    ├── view-model.ts          # State + handlers
-    └── components/            # Feature-specific UI
-```
-
-### Shared Infrastructure
-```
-shared/
-├── ui/                        # Generic UI primitives
-├── utils/                     # Helpers, formatters
-├── capacitor-plugins/         # Native API wrappers
-└── types/                     # Global TypeScript types
+game-catustry/
+├── app/                          # Game entry points, screens
+│   ├── game/
+│   │   ├── page.tsx              # Main game screen
+│   │   └── components/           # Game-specific UI
+│   └── ...
+├── components/                   # Shared game components
+├── features/                     # Feature modules
+│   ├── player/
+│   │   ├── presentation/         # Player UI, view model
+│   │   ├── domain/              # Player entities, use cases
+│   │   └── data/                # Player repository
+│   ├── guild/
+│   └── gear/
+├── domain/                       # Core game entities, types
+├── data/                         # Data layer, API clients
+├── lib/                          # Utilities, helpers
+└── docs/                         # This documentation
 ```
 
 ---
 
-## 🎯 Coding Best Practices
+## 🎮 Core Game Systems Implementation
 
-### TypeScript
-- **Strict mode enabled** (`strict: true` in `tsconfig.json`)
-- Define interfaces at domain boundaries
-- Use DTOs for cross-layer communication — never leak internal models
-- Zod for input validation at layer boundaries
+### 1. Player System
 
-### State Management (MVVM)
+**Key Features:**
+- Level progression with XP
+- Stat management (speed, stamina, quality)
+- Energy system
+
+**Implementation Patterns:**
 ```typescript
-// ViewModel = pure state + handlers, no React hooks
-export class TodoViewModel {
-  private todos = new Map<string, Todo>();
-  private listeners = new Set<() => void>();
+// Domain entity
+interface Player {
+  level: number;
+  xp: number;
+  stats: { speed: number; stamina: number; quality: number };
+  // ...
+}
 
-  constructor(private getTodosUseCase: GetTodosUseCase) {}
+// Use case for leveling
+class LevelUpUseCase {
+  execute(player: Player): Player {
+    if (this.canLevelUp(player)) {
+      return {
+        ...player,
+        level: player.level + 1,
+        xp: 0,
+        xpToNext: this.getXpForLevel(player.level + 1)
+      };
+    }
+    return player;
+  }
+  
+  private canLevelUp(player: Player): boolean {
+    return player.xp >= this.getXpForLevel(player.level);
+  }
+  
+  private getXpForLevel(level: number): number {
+    const xpTable = [0, 50, 150, 350, 700, 1200, 2000, 3200, 5000, 8000];
+    return xpTable[level - 1] || 0;
+  }
+}
+```
 
-  async loadTodos() {
-    const todos = await this.getTodosUseCase.execute();
-    todos.forEach(t => this.todos.set(t.id, t));
+### 2. Production System
+
+**Key Features:**
+- Crop production with tap counts
+- Tier-based XP rewards
+- Energy consumption
+
+**Implementation Patterns:**
+```typescript
+// Production calculation with gear
+function calculateProduction(baseTaps: number, speed: number, toolBonus: number): number {
+  // Speed reduces taps: each speed level gives 7% reduction
+  const speedModifier = 1 - (0.07 * speed);
+  const afterSpeed = Math.ceil(baseTaps * speedModifier);
+  return Math.max(1, afterSpeed - toolBonus);
+}
+```
+
+### 3. Guild System
+
+**Key Features:**
+- Contribution points
+- Guild shop with medals and gear
+- Guild level discounts
+
+**Implementation Patterns:**
+```typescript
+// Guild shop item with discount
+interface ShopItem {
+  id: string;
+  baseCost: number;
+  discount: number;  // 0.0 to 0.2 based on guild level
+  requiresGuildLevel?: number;
+}
+
+function calculateShopCost(item: ShopItem, guildLevel: number): number {
+  let discount = 0;
+  if (guildLevel >= 5) discount = 0.2;
+  else if (guildLevel >= 3) discount = 0.1;
+  
+  return Math.floor(item.baseCost * (1 - discount));
+}
+```
+
+### 4. Gear System
+
+**Key Features:**
+- 3 slots: Tool, Accessory, Uniform
+- Stacking bonuses
+- Visual indicators
+
+**Implementation Patterns:**
+```typescript
+// Gear with stacking effects
+interface Gear {
+  id: string;
+  slot: 'tool' | 'accessory' | 'uniform';
+  effects: GearEffect[];
+}
+
+interface GearEffect {
+  type: 'tap_reduction' | 'quality_bonus' | 'energy_reduction';
+  value: number;
+  target?: string;  // Optional: specific item type
+}
+
+// Apply gear bonuses
+function applyGearEffects(baseStats: PlayerStats, gear: EquippedGear): ModifiedStats {
+  return {
+    ...baseStats,
+    speed: baseStats.speed + (gear.uniform?.speedBonus || 0),
+    // ... other stacked bonuses
+  };
+}
+```
+
+---
+
+## ⚙️ State Management Pattern
+
+### Game State Store
+```typescript
+class GameState {
+  private player: Player;
+  private ui: UIState;
+  private listeners: Set<() => void> = new Set();
+
+  // Actions
+  tapCrop(cropId: string): void {
+    const result = this.useCases.processTap(this.player, cropId);
+    this.player = result.player;
     this.notify();
   }
 
-  subscribe(listener: () => void) {
+  buyMedal(type: string): void {
+    const result = this.useCases.buyMedal(this.player, type);
+    if (result.success) {
+      this.player = result.player;
+      this.notify();
+    }
+  }
+
+  subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  private notify() { this.listeners.forEach(l => l()); }
+  private notify(): void {
+    this.listeners.forEach(l => l());
+  }
 }
 ```
 
-- **Unidirectional flow**: View → ViewModel → UseCase → Repository
-- **Optimistic UI**: Update local first, reconcile after confirmation
-- **Single source of truth**: One repository per entity type
-
-### Next.js Specific
-- Use `"use client"` for components needing browser APIs
-- Server components for static content; client components for interactivity
-- Detect platform: `const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor;`
-- **Never put secrets in `NEXT_PUBLIC_*`** variables
-
-### P2P / WebRTC
-- Signaling = minimal WebSocket (offer/answer/candidates only)
-- App data = WebRTC DataChannels (SCTP, binary)
-- Mesh topology for ≤ 4 peers; plan SFU for larger groups
-- CRDTs for state sync — broadcast operations, not full state
-- Pre-gather ICE candidates during lobby/onboarding
-
-### Offline-First
-- All writes → local storage first → sync background when online
-- Queue pending operations with auto-retry on reconnection
-- Conflict resolution: last-write-wins (timestamp) for simple data; CRDTs for collaborative
-- Capacitor Network plugin for connectivity awareness
-
 ---
 
-## 🔒 Security Rules
+## 🧪 Testing Strategy
 
-| Rule | Enforcement |
-|---|---|
-| No secrets in client bundle | Code review + never use `NEXT_PUBLIC_` for sensitive data |
-| Server-side proxy for API keys | Next.js API routes as secure middleman |
-| Secure storage on device | Capacitor Keychain/Keystore plugins for tokens |
-| HTTPS + WSS everywhere | No mixed content |
-| Input validation | Zod at all boundaries |
-| Route protection | Middleware + auth checks on protected routes |
+### Unit Tests (Domain Layer)
+- Test business rules independently
+- Mock repositories
+- Verify edge cases (level caps, gear interactions)
 
----
-
-## 🧪 Testing Strategy (Test Pyramid)
-
-| Layer | Type | Tools | Coverage Goal |
-|---|---|---|---|
-| Domain | Unit tests | Vitest / Jest | 80%+ |
-| Data | Integration tests | Vitest + mock APIs | 60%+ |
-| Presentation | Component tests | React Testing Library | 40% critical paths |
-| Full App | E2E smoke tests | Playwright | Happy paths only |
-
-**Run tests**: `npm test`
-
----
-
-## 🔧 Platform Detection & Capacitor Plugins
-
-### Safe Platform Check
 ```typescript
-// shared/utils/platform.ts
-export const isCapacitor = (): boolean => {
-  return typeof window !== 'undefined' && 
-         typeof (window as any).Capacitor !== 'undefined';
-};
-
-export const isWeb = (): boolean => !isCapacitor();
+describe('MedalUseCase', () => {
+  it('should reject medal use when at level cap', () => {
+    const player = createPlayer({ level: 3, stats: { speed: 3 } });
+    const result = useMedal(player, 'speed');
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('LEVEL_CAP');
+  });
+});
 ```
 
-### Adding Native Plugins
-```bash
-# Install
-npm install @capacitor/camera
-
-# Sync after every plugin add
-npx cap sync android
-```
-
-**Rule**: Wrap all native plugin calls behind domain interfaces so UI remains platform-agnostic.
+### Integration Tests (Data Layer)
+- Test API interactions
+- Test storage persistence
+- Test sync scenarios
 
 ---
 
-## 📝 Daily Development Workflow
+## 📝 Development Workflow
 
 ```
-1. git pull origin main           ← Sync latest
-2. npm run dev                    ← Start dev server
-3. Code → test in browser         ← Iterate
-4. npm run build                  ← Verify static export
-5. npx cap sync android           ← Verify Capacitor sync
-6. git add / commit / push        ← Trigger cloud APK build
-7. Download APK from GitHub       ← Install & test on device
+1. Understand the feature from IDEA.md
+2. Identify domain entities & use cases
+3. Write domain tests first (TDD)
+4. Implement use cases
+5. Implement data layer
+6. Build UI components
+7. Test end-to-end flow
+8. Document any deviations
 ```
 
 ---
 
-## 📌 Version Control
+## ⚡ Quick Commands
 
-- **Branch strategy**: `main` = stable, `feature/*` = work in progress
-- **Commit messages**: `type(scope): description`
-  - `feat(todo): add offline queue`
-  - `fix(p2p): handle ICE candidate timeout`
-  - `chore(build): bump capacitor to 8.1`
-- **PRs required** for main branch protection (enable in GitHub settings)
+| Task | Command |
+|---|---|
+| Run tests | `npm test` |
+| Start dev server | `npm run dev` |
+| Build | `npm run build` |
+| Lint | `npm run lint` |
 
 ---
 
-## 📌 Next Steps
+## 📚 Key Resources
 
-- Ready to ship? Load **`docs/DEPLOYMENT.md`**
-- Something broken? Load **`docs/TROUBLESHOOTING.md`**
-- Need architecture context? Load **`docs/ARCHITECTURE.md`**
+- **Game Spec**: `IDEA.md` (source of truth for all game mechanics)
+- **Architecture**: `docs/ARCHITECTURE.md` (data models, systems overview)
+- **API Design**: See API endpoints in ARCHITECTURE.md

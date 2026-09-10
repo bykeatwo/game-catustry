@@ -1,88 +1,102 @@
-# Next.js + Capacitor Android App — Project Guideline
+# 🐱 Cat's Food Chain Farm — Game Development Project
 
-> **For AI Agents**: This is your entry point. Read this file first to understand the project structure, then load ONLY the specific guide document you need for your current task.
+> **For AI Agents**: This is your entry point. Read this file first to understand the game concept, then load the specific documentation for your current task.
 
 ---
 
-## 📋 Quick Reference
+## 🎮 Game Overview
 
-| Aspect | Details |
-|---|---|
-| **Architecture** | Next.js (App Router) + Capacitor (Android runtime) + Clean/MVVM layers |
-| **Build Strategy** | Code in Termux → push to GitHub → GitHub Actions builds APK in cloud |
-| **Target** | Android APK (web + mobile from single codebase) |
-| **Key Features** | P2P/WebRTC capable, offline-ready, single codebase |
+**Cat's Food Chain Farm** is a mobile idle/tap game where players manage a farm, grow crops, process them into food, and progress through a tier-based economy. Players can join guilds, contribute to collective goals, and purchase stat-boosting medals and gear.
+
+### Core Systems
+- **Player Level & XP**: Tap to gain XP, level up to unlock facilities and increase stat caps
+- **Production Chain**: Raw crops → Processed goods → Crafted items → Gourmet dishes
+- **Guild System**: Join guilds, contribute to communal resources, shop for exclusive items
+- **Upgrade Medals**: Consumable items that permanently boost player stats
+- **Tools & Gear**: Equippable items that provide production bonuses and efficiency
 
 ---
 
 ## 📚 Documentation Map
 
-**Load these files based on your current task:**
-
 | Task | Document to Load |
 |---|---|
-| 🏗️ **New project setup**, installing dependencies, configuring Capacitor | `docs/SETUP.md` |
-| 💻 **Coding**, architecture rules, folder structure, state management, best practices | `docs/DEVELOPMENT.md` |
-| 🚀 **Building APK**, GitHub Actions, release, Play Store, version updates | `docs/DEPLOYMENT.md` |
-| 🔧 **Fixing problems**, build errors, common issues | `docs/TROUBLESHOOTING.md` |
-| 🧠 **Architecture decisions**, why this stack, layer boundaries | `docs/ARCHITECTURE.md` |
+| 🏗️ **Architecture decisions**, data models, progression systems | `docs/ARCHITECTURE.md` |
+| 💻 **Coding**, game mechanics, API endpoints, state management | `docs/DEVELOPMENT.md` |
+| 🔧 **Agent setup**, dependencies, environment configuration | `docs/SETUP.md` |
+| 📦 **Deployment**, APK building, distribution | `docs/DEPLOYMENT.md` |
+| 🔧 **Problem solving**, debugging, common issues | `docs/TROUBLESHOOTING.md` |
 
 ---
 
-## 🚦 Workflow Overview
+## 🚦 Development Workflow
 
 ```
-1. SETUP      → docs/SETUP.md      (run once per machine/project)
+1. SETUP      → docs/SETUP.md (run once per environment)
 2. DEVELOP    → docs/DEVELOPMENT.md (daily coding)
-3. DEPLOY     → docs/DEPLOYMENT.md  (when shipping)
-4. TROUBLESHOOT → docs/TROUBLESHOOTING.md (when broken)
+3. DEPLOY     → docs/DEPLOYMENT.md (when releasing)
+4. TROUBLESHOOT → docs/TROUBLESHOOTING.md (when debugging)
 ```
 
 ---
 
-## ⚡ Quick Start (5 commands)
+## 🏗️ Key Features (from IDEA.md)
 
-```bash
-# 1. Install deps
-npm install
+### Player Level System
+- Gain XP through: tapping (+1), production completion (tier-based), item sales
+- Level caps stats: Player LV 5 means max stat level is 5
+- Unlocks: Mill (LV 3), Bakery (LV 5), Gourmet Studio (LV 9), Market Stall Lv 2 (LV 7)
 
-# 2. Run web dev server
-npm run dev
+### Guild Shop & Medals
+- **Medal of Swiftness** (200 pts): +1 Speed
+- **Medal of Vigor** (200 pts): +1 Stamina  
+- **Medal of Brilliance** (300 pts): +1 Quality
+- Medals are consumed on use, bind to buyer, scale with guild level
 
-# 3. Build static export
-npm run build
+### Tools & Gear System
+- **3 Gear Slots**: Tool, Accessory, Uniform
+- Tools: Reduce taps (e.g., Golden Trowel, Master Rolling Pin)
+- Accessories: Increase quality chance (e.g., Lucky Cat Collar)
+- Uniforms: Reduce energy cost or increase pool (e.g., Farmer Apron)
 
-# 4. Sync to Capacitor
-npx cap sync android
-
-# 5. Push to trigger cloud APK build
-git push origin main
-```
-
-> **For full details on any step, load the corresponding document from `docs/`.**
+### Production & Progression
+- Tap crops → Harvest → Process → Craft → Gourmet
+- Each tier gives bonus XP: Raw +3, Processed +8, Crafted +20, Gourmet +60
+- Gear stacks additively with stats for optimized production
 
 ---
 
 ## 📁 Project Structure
 
 ```
-your-app/
+game-catustry/
 ├── README.md                    ← YOU ARE HERE (entry point)
+├── IDEA.md                      ← Core game specification (source of truth)
 ├── docs/
-│   ├── SETUP.md                 ← Full setup guide
-│   ├── DEVELOPMENT.md           ← Coding rules & practices
+│   ├── ARCHITECTURE.md          ← Game systems & data models
+│   ├── DEVELOPMENT.md           ← Game coding practices
+│   ├── SETUP.md                 ← Environment setup for agents
 │   ├── DEPLOYMENT.md            ← Build & release process
-│   ├── TROUBLESHOOTING.md       ← Problem solving
-│   └── ARCHITECTURE.md          ← Architecture decisions
-├── app/                         ← Next.js App Router routes
-├── components/                  ← Shared UI components
-├── features/                    ← Feature modules (domain + data + presentation)
-├── domain/                      ← Pure business logic (zero external deps)
-├── data/                        ← Repositories, APIs, storage
-├── lib/                         ← Shared utilities
-├── public/                      ← Static assets
-├── android/                     ← Capacitor native project (auto-generated)
-├── capacitor.config.ts          ← Capacitor configuration
-├── next.config.js               ← Next.js config (static export enabled)
-└── .github/workflows/build-apk.yml  ← Cloud APK builder
+│   └── TROUBLESHOOTING.md       ← Problem solving for agents
+└── ... (implementation files follow IDEA.md)
 ```
+
+---
+
+## ⚡ Quick Start for Development
+
+```bash
+# 1. Install deps (see docs/SETUP.md)
+npm install
+
+# 2. Run dev server
+npm run dev
+
+# 3. Build for deployment
+npm run build
+
+# 4. For APK builds (cloud via GitHub Actions)
+git add . && git commit -m "feat: changes" && git push origin main
+```
+
+> **For full details on any step, load the corresponding document from `docs/`.**
