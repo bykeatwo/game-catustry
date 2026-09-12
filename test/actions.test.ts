@@ -29,6 +29,26 @@ describe('workPlot', () => {
   });
 });
 
+describe('workFacility', () => {
+  it('crafts after enough taps, consuming inputs', () => {
+    const s = scene();
+    s.production.level = 3;
+    s.production.inventory.wheat = 2;
+    s.production.facilities.push({ id: 'fac-0', gx: 3, gy: 3, type: 'mill', recipe: 'flour', progress: 0 });
+    let produced: string | undefined;
+    for (let i = 0; i < 12; i++) produced = workFacility(s, 0).produced; // flour taps 12
+    expect(produced).toBe('flour');
+    expect(itemCount(s.production.inventory, 'flour')).toBe(1);
+    expect(s.production.inventory.wheat).toBeFalsy(); // 2 wheat consumed
+  });
+  it('rejects when missing inputs', () => {
+    const s = scene();
+    s.production.level = 3;
+    s.production.facilities.push({ id: 'fac-0', gx: 3, gy: 3, type: 'mill', recipe: 'flour', progress: 0 });
+    expect(workFacility(s, 0).reason).toBe('MISSING_INPUTS');
+  });
+});
+
 describe('plantCrop', () => {
   it('consumes a seed to set the crop', () => {
     const s = scene(); s.production.seeds.carrot = 1;
