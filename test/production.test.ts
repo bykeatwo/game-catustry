@@ -4,7 +4,7 @@ import { ITEMS, RECIPES } from '@/domain/items';
 import { ProductionState } from '@/domain/types';
 
 function state(): ProductionState {
-  return { coins: 0, level: 9, xp: 0, energy: 100, inventory: {}, plots: [], facilities: [], discoveredCrops: [] };
+  return { coins: 0, level: 9, xp: 0, energy: 100, inventory: {}, seeds: {}, plots: [], facilities: [], discoveredCrops: [] };
 }
 
 describe('tapsFor', () => {

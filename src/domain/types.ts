@@ -27,12 +27,16 @@ export interface Recipe {
 
 export interface Plot {
   id: string;
+  gx: number;
+  gy: number;
   crop: CropId | null;   // null = empty (nothing planted)
   progress: number;      // work-taps done toward the crop's taps
 }
 
 export interface Facility {
   id: string;
+  gx: number;
+  gy: number;
   type: FacilityType;
   recipe: RecipeId | null; // null = no recipe selected
   progress: number;
@@ -46,6 +50,7 @@ export interface ProductionState {
   xp: number;
   energy: number;
   inventory: Inventory;
+  seeds: Partial<Record<CropId, number>>;
   plots: Plot[];
   facilities: Facility[];
   discoveredCrops: CropId[];

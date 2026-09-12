@@ -3,7 +3,7 @@ import { regenEnergy, ENERGY_REGEN_PER_SEC } from '@/domain/energy';
 import { ProductionState } from '@/domain/types';
 
 function state(): ProductionState {
-  return { coins: 0, level: 1, xp: 0, energy: 50, inventory: {}, plots: [], facilities: [], discoveredCrops: [] };
+  return { coins: 0, level: 1, xp: 0, energy: 50, inventory: {}, seeds: {}, plots: [], facilities: [], discoveredCrops: [] };
 }
 
 describe('regenEnergy', () => {

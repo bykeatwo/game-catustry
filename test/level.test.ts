@@ -3,7 +3,7 @@ import { xpToNext, maxEnergy, gainXp } from '@/domain/level';
 import { ProductionState } from '@/domain/types';
 
 function state(): ProductionState {
-  return { coins: 0, level: 1, xp: 0, energy: 100, inventory: {}, plots: [], facilities: [], discoveredCrops: [] };
+  return { coins: 0, level: 1, xp: 0, energy: 100, inventory: {}, seeds: {}, plots: [], facilities: [], discoveredCrops: [] };
 }
 
 describe('xpToNext', () => {

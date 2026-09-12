@@ -20,7 +20,8 @@ export function createInitialState(): GameState {
       xp: 0,
       energy: 100,
       inventory: {},
-      plots: [{ id: 'plot-0', crop: 'wheat', progress: 0 }],
+      seeds: {},
+      plots: [{ id: 'plot-0', gx: 1, gy: 0, crop: 'wheat', progress: 0 }],
       facilities: [],
       discoveredCrops: ['wheat']
     }
