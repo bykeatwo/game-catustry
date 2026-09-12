@@ -5,5 +5,5 @@ export default defineConfig({
   root: '.',
   base: './',
   build: { outDir: 'dist' },
-  resolve: { alias: { '@': path.resolve(__dirname, 'src') } }
+  resolve: { alias: { '@': path.resolve(process.cwd(), 'src') } }
 });
