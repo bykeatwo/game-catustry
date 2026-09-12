@@ -4,6 +4,8 @@ import { isoToScreen, screenToIso } from './iso';
 import { makeIsoTileTexture, makeCatTexture } from './textures';
 import { JoystickInput } from './JoystickInput';
 import { InteractPrompt } from './InteractPrompt';
+import { drawProductionObjects } from './EntitySprites';
+import { regenEnergy, maxEnergy } from '../domain/energy';
 import { GameStore } from '../state/store';
 import { createInitialState } from '../domain/state';
 import { tileAt, isAdjacentToOwned, countOwned } from '../domain/world';
@@ -22,6 +24,8 @@ export class GameScene extends Phaser.Scene {
   private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
   private joystick!: JoystickInput;
   private prompt!: InteractPrompt;
+  private prodGroup!: Phaser.GameObjects.Group;
+  private hud!: Phaser.GameObjects.Text;
 
   constructor() { super('GameScene'); }
 
@@ -34,6 +38,9 @@ export class GameScene extends Phaser.Scene {
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.joystick = new JoystickInput(this);
     this.prompt = new InteractPrompt(this);
+    this.prodGroup = this.add.group();
+    this.hud = this.add.text(16, 16, '', { fontSize: '16px', color: '#fff', backgroundColor: '#00000088' })
+      .setScrollFactor(0).setDepth(1000);
 
     this.store.subscribe(() => this.renderWorld());
     this.renderWorld();
@@ -44,31 +51,38 @@ export class GameScene extends Phaser.Scene {
   private tileKey(gx: number, gy: number): string { return `${gx},${gy}`; }
 
   private renderWorld(): void {
-    const { world } = this.store.getState();
+    const state = this.store.getState();
     const seen = new Set<string>();
-    for (const tile of world.tiles) {
+
+    // tiles
+    for (const tile of state.world.tiles) {
       const key = this.tileKey(tile.gx, tile.gy);
       seen.add(key);
       const { x, y } = isoToScreen(tile.gx, tile.gy, GAME_CONFIG.tileWidth, GAME_CONFIG.tileHeight);
       let img = this.tileSprites.get(key);
       if (!img) {
         img = this.add.image(0, 0, 'isoTile');
-        img.setDepth(y); // sort by iso depth
+        img.setDepth(y);
         this.tileSprites.set(key, img);
       }
       img.setPosition(x, y);
-      img.setTint(TILE_COLORS[tile.kind] ?? 0x999999);
-      img.setData('owned', tile.owned);
+      img.setTint(tile.owned ? TILE_COLORS[tile.kind] ?? 0x6a9a54 : 0x3a3a3a);
     }
-    for (const [key, img] of this.tileSprites) {
-      if (!seen.has(key)) { img.destroy(); this.tileSprites.delete(key); }
-    }
+    for (const [key, img] of this.tileSprites) if (!seen.has(key)) { img.destroy(); this.tileSprites.delete(key); }
+
+    // production objects (plots, facilities, wild/ruin)
+    drawProductionObjects(this, this.store, this.prodGroup);
   }
 
   private createCat(): void {
     const p = this.store.getState().world.player;
     const { x, y } = isoToScreen(p.gx, p.gy, GAME_CONFIG.tileWidth, GAME_CONFIG.tileHeight);
     this.cat = this.add.sprite(x, y, 'cat');
+  }
+
+  private refreshHUD(): void {
+    const s = this.store.getState().production;
+    this.hud.setText(`🪙 ${s.coins}   ⚡ ${Math.floor(s.energy)}/${maxEnergy(s.level)}   Lv ${s.level}`);
   }
 
   update(_time: number, delta: number): void {
@@ -90,13 +104,32 @@ export class GameScene extends Phaser.Scene {
     this.cat.setDepth(this.cat.y);
     this.cameras.main.centerOn(this.cat.x, this.cat.y);
 
-    // land-buying interaction based on the cat's hovered tile
-    const { gx, gy } = screenToIso(this.cat.x, this.cat.y, GAME_CONFIG.tileWidth, GAME_CONFIG.tileHeight);
-    const tx = Math.round(gx), ty = Math.round(gy);
-    const target = tileAt(this.store.getState().world, tx, ty);
-    if (target && !target.owned && isAdjacentToOwned(this.store.getState().world, tx, ty)) {
-      const cost = landCost(countOwned(this.store.getState().world));
-      this.prompt.show(`Buy land — ${cost} 🪙`, 'Buy', () => { this.store.buyLand(tx, ty); this.prompt.hide(); });
+    // energy regen
+    const state = this.store.getState();
+    regenEnergy(state.production, delta);
+    this.refreshHUD();
+
+    // interaction detection
+    const { gx: cx, gy: cy } = screenToIso(this.cat.x, this.cat.y, GAME_CONFIG.tileWidth, GAME_CONFIG.tileHeight);
+    const tx = Math.round(cx), ty = Math.round(cy);
+    const target = tileAt(state.world, tx, ty);
+
+    // prioritize facility > plot > wild/ruin over land-buying
+    const fac = state.production.facilities.find(f => f.gx === tx && f.gy === ty);
+    const plot = state.production.plots.find(p => p.gx === tx && p.gy === ty);
+
+    if (fac) {
+      this.prompt.show(`Work ${fac.type}`, 'Tap to work', () => { this.store.workFacility(state.production.facilities.indexOf(fac)); });
+    } else if (plot && plot.crop) {
+      this.prompt.show(`Work ${plot.crop || 'plot'}`, 'Tap to work', () => { this.store.workPlot(state.production.plots.indexOf(plot)); });
+    } else if (target?.kind === 'wild' && target.resource) {
+      this.prompt.show(`Gather ${target.resource}`, 'Gather', () => { this.store.gatherWild(tx, ty); });
+    } else if (target?.kind === 'ruin' && target.ruinType) {
+      const cost = landCost(countOwned(state.world));
+      this.prompt.show(`Build ${target.ruinType} — ${cost} 🪙`, 'Build', () => { this.store.buildFacility(tx, ty); });
+    } else if (target && !target.owned && isAdjacentToOwned(state.world, tx, ty)) {
+      const cost = landCost(countOwned(state.world));
+      this.prompt.show(`Buy land — ${cost} 🪙`, 'Buy', () => { this.store.buyLand(tx, ty); });
     } else {
       this.prompt.hide();
     }
