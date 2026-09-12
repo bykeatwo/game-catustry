@@ -1,4 +1,4 @@
-import { CropId, FacilityType, Item, ItemId, Recipe, Tier } from './types';
+import { CropId, FacilityType, Item, ItemId, Recipe, RecipeId, Tier } from './types';
 
 export const ITEMS: Record<ItemId, Item> = {
   wheat:       { id: 'wheat',        name: 'Wheat',         tier: 'raw',       taps: 5,  sell: 3 },
@@ -17,7 +17,7 @@ export const ITEMS: Record<ItemId, Item> = {
   royal:       { id: 'royal',        name: 'Royal Platter', tier: 'gourmet',   taps: 45, sell: 260 }
 };
 
-export const RECIPES: Record<ItemId, Recipe> = {
+export const RECIPES: Record<RecipeId, Recipe> = {
   flour:        { output: 'flour',        facility: 'mill',    level: 3, inputs: { wheat: 2 } },
   carrot_juice: { output: 'carrot_juice', facility: 'mill',    level: 3, inputs: { carrot: 2 } },
   mashed:       { output: 'mashed',       facility: 'mill',    level: 3, inputs: { potato: 2 } },

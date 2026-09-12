@@ -16,6 +16,7 @@ export interface Item {
 
 export type FacilityType = 'mill' | 'bakery' | 'gourmet';
 export type CropId = 'wheat' | 'carrot' | 'potato' | 'egg';
+export type RecipeId = Exclude<ItemId, CropId>;
 
 export interface Recipe {
   output: ItemId;
@@ -33,7 +34,7 @@ export interface Plot {
 export interface Facility {
   id: string;
   type: FacilityType;
-  recipe: ItemId | null; // null = no recipe selected
+  recipe: RecipeId | null; // null = no recipe selected
   progress: number;
 }
 
