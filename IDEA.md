@@ -1,5 +1,7 @@
 # Cat's Food Chain Farm — Updated MVP Spec v0.3
 
+> **v0.4 — re-scoped to an open-world isometric settler (Phaser 3 + TypeScript).** The guild/medal/gear systems and the REST API are **deferred out of MVP**; see `docs/superpowers/specs/2026-09-11-open-world-settler-design.md`. The food-chain, XP/level, and energy sections remain authoritative.
+
 **New systems added:** Player Level, Upgrade Medals (Guild Shop), and Tools & Gear.
 
 ---
@@ -33,7 +35,7 @@ Player level gates the maximum stat level achievable via medals.
 
 ---
 
-## 04b · Upgrade Medals — Guild Shop (NEW)
+## 04b · Upgrade Medals — Guild Shop (NEW) — ⛔ DEFERRED OUT OF MVP
 
 Medals are consumable items bought from the **Guild Shop** using guild contribution points. Each medal applies +1 level to one stat, **capped at player level**.
 
@@ -70,7 +72,7 @@ Player Lv 5, Speed currently Lv 3
 
 ---
 
-## 04c · Tools & Gear System (NEW)
+## 04c · Tools & Gear System (NEW) — ⛔ DEFERRED OUT OF MVP
 
 Equippable items that provide **production bonuses** or **quality chance boosts**. Each tool occupies a gear slot and targets specific production types or facilities.
 
@@ -189,7 +191,7 @@ Crafting Bread (base 22 taps, 4 energy/tap):
 
 ---
 
-## New API Endpoints
+## New API Endpoints — ⛔ DEFERRED (no backend in MVP)
 
 | Method | Route | Purpose |
 |---|---|---|

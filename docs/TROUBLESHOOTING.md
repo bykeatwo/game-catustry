@@ -1,6 +1,6 @@
 # 🔧 TROUBLESHOOTING Guide — Debugging & Problem Solving
 
-> **For AI Agents**: Load this document when encountering errors, validation failures, or unexpected behavior during game development.
+> **For AI Agents**: Load this document when encountering errors or unexpected behavior.
 
 ---
 
@@ -8,153 +8,73 @@
 
 ```
 1. Identify the error or unexpected behavior
-2. Check relevant domain rules from IDEA.md
-3. Trace data flow through layers
-4. Apply solution
-5. Verify with test
+2. Check the relevant domain logic (src/domain/)
+3. Trace data flow: input → use-case → GameStore → render
+4. Add/run a Vitest test to reproduce
+5. Fix and verify
 ```
 
 ---
 
 ## 🎮 Game-Specific Issues
 
-### ❌ Player Level Cap Not Enforced
+### ❌ Energy not regenerating
 
-**Symptom**: Stats can exceed player level
+**Symptom**: Energy drains on work but never recovers.
 
-**Solution**: Verify the level cap check in medal use and gear application:
-```typescript
-// Correct: Check cap before applying
-if (newStatLevel > player.level) {
-  return { error: "LEVEL_CAP", message: "..." };
-}
-```
+**Solution**: Confirm `regenEnergy(state.production, delta)` is called every frame in `GameScene.update`, with `delta` (ms) passed from Phaser. Verify the regen math in `src/domain/energy.ts`.
 
-**Debug**: Add unit tests for max level edge cases
+### ❌ Sprites overlapping incorrectly (wrong depth sort)
 
----
+**Symptom**: A tile/facility that should be behind another renders in front.
 
-### ❌ Guild Shop Prices Not Scaling
+**Solution**: Depth must equal the isometric screen `y`. In `GameScene`, sprites set `setDepth(y)`; tiles use `isoToScreen(...).y`. Verify `isoToScreen` in `src/presentation/iso.ts` and that nothing overrides depth after creation.
 
-**Symptom**: Guild level discounts not applied
+### ❌ Merchant shop won't open
 
-**Solution**: Verify guild level discount logic:
-```typescript
-const discount = guild.level >= 5 ? 0.2 : 
-                 guild.level >= 3 ? 0.1 : 0;
-const finalCost = Math.floor(item.baseCost * (1 - discount));
-```
+**Symptom**: Standing on the merchant tile shows no "Trade" prompt.
 
-**Debug**: Log guild level and calculated discount during purchases
+**Solution**: Verify the merchant tile exists (generated at `MERCHANT_POS = {x:4, y:4}` by `src/domain/mapgen.ts`) and that `GameScene.update` hits the `target?.kind === 'merchant'` branch **before** the buy-land branch. Also confirm `index.html` contains the `#shop` overlay and `MerchantUI` was constructed in `create()`.
+
+### ❌ Buy/sell actions have no effect
+
+**Symptom**: Clicking seed/inventory buttons does nothing.
+
+**Solution**: Check the `ActionResult` reason. `buySeed` returns `NOT_DISCOVERED` or `INSUFFICIENT_COINS`; `sellItem` returns `NOT_ENOUGH`. Log the result in `store.buySeed` / `store.sellItem`.
 
 ---
 
-### ❌ Gear Bonuses Not Stacking
+## 💾 Persistence Issues
 
-**Symptom**: Equipped tools/accessories/uniforms don't affect production
+### ❌ Save doesn't persist after refresh
 
-**Solution**: Verify all bonus calculations are applied:
-- Check that gear is actually equipped (in player state)
-- Verify stacking formula: `finalValue = base × (1 + sum of all bonuses)`
-- Test with no gear, partial gear, full gear
+**Symptom**: Progress resets on page reload.
 
-**Debug**: Log all modifier sources before final calculation
+**Solution**: Check `localStorage` for key `catustry-save`. Confirm autosave is wired in `GameScene.create` (debounced subscriber + 5 s periodic `time.addEvent`), and that `loadState()` is used in `GameScene.init` (`new GameStore(loadState() ?? createInitialState())`).
 
----
+### ❌ Save rejected on load (deserialize returns null)
 
-### ❌ Production Taps Not Reducing Correctly
+**Symptom**: A previously valid save no longer loads.
 
-**Symptom**: Tap count doesn't match expected value with speed gear
-
-**Solution**: Verify speed calculation per IDEA.md spec:
-- Each speed level = 7% reduction
-- Formula: `taps × (1 - 0.07 × speed)`
-- Apply tool bonuses after speed reduction
-
-**Debug**: Log base taps, speed modifier, tool bonus, final count
+**Solution**: `deserialize` rejects when the parsed `version !== SCHEMA_VERSION` or when `world`/`production` are missing. If you change the shape of `GameState`, bump `SCHEMA_VERSION` and add a `migrate` path in `src/domain/save.ts`. Corrupt/invalid JSON also returns `null` (falls back to a fresh state).
 
 ---
 
-## 🔄 Data Integrity Issues
+## 🧱 Type / Build Issues
 
-### Potion: Invalid Player State
+### ❌ `tsc --noEmit` fails
 
-**Symptom**: Player stats are inconsistent with level
+**Symptom**: `npm run build` fails at the type-check step.
 
-**Solution**: Add validation in state updates:
-```typescript
-function validatePlayerState(player: Player): ValidationResult {
-  const maxStat = player.level;
-  for (const stat of ['speed', 'stamina', 'quality']) {
-    if (player.stats[stat] > maxStat) {
-      return { valid: false, error: `STAT_OVER_CAP_${stat}` };
-    }
-  }
-  return { valid: true };
-}
-```
+**Solution**: Run `npx tsc --noEmit` directly to see all errors. Common causes: importing Phaser inside `src/domain/` (violates the layering rule), or a mismatched `ActionResult`/`BuyResult` shape.
 
 ---
 
-### Potion: Medal Use on Wrong Stat
+## 🧪 Testing
 
-**Symptom**: Using medal_swiftness increases wrong stat
-
-**Solution**: Verify stat mapping:
-```typescript
-const medalStatMap = {
-  'medal_swiftness': 'speed',
-  'medal_vigor': 'stamina',
-  'medal_brilliance': 'quality'
-};
-```
-
-**Debug**: Log mapped stat vs intended stat during use
-
----
-
-## 🧪 Testing Strategies
-
-### Unit Test Edge Cases
-```typescript
-describe('Level Cap', () => {
-  it('rejects stat increase above level', () => {
-    const player = { level: 5, stats: { speed: 5 } };
-    expect(() => applyMedal(player, 'speed')).toThrow('LEVEL_CAP');
-  });
-  
-  it('allows stat increase at cap', () => {
-    const player = { level: 6, stats: { speed: 5 } };
-    expect(applyMedal(player, 'speed')).toBeValid();
-  });
-});
-```
-
-### Integration Test Flows
-1. Player earns XP → levels up → cap increases
-2. Player buys medal → stat increases → respects new cap
-3. Player equips gear → production improves
-
----
-
-## 🛠️ Debugging Tools
-
-### Console Logging Pattern
-```typescript
-function debugLog(context: string, data: any) {
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[DEBUG] ${context}:`, JSON.stringify(data, null, 2));
-  }
-}
-```
-
-### State Validation Hook
-```typescript
-// Use in development to catch state corruption
-if (process.env.NODE_ENV === 'development') {
-  validatePlayerState(currentPlayer);
-}
-```
+- Add a Vitest file per domain module (e.g. `test/mapgen.test.ts`).
+- Reproduce a bug as a failing test first, then fix.
+- Run `npm test` after every change.
 
 ---
 
@@ -162,29 +82,16 @@ if (process.env.NODE_ENV === 'development') {
 
 | Pitfall | Cause | Prevention |
 |---|---|---|
-| Stats exceed level | Missing cap check | Validate on every stat change |
-| Negative taps | Over-aggressive bonuses | Minimum 1 tap always |
-| Medal stuck in inventory | Wrong item type | Verify medal ID format |
-| Gear not equipping | Wrong slot type | Check slot availability |
-
----
-
-## 📞 When to Seek Help
-
-If you've tried:
-1. Checking the relevant code against IDEA.md specs
-2. Adding debug logging
-3. Writing minimal reproduction test
-
-Then consider:
-- Documenting the edge case in code comments
-- Updating tests to cover the scenario
-- Recording as a known issue for future reference
+| Phaser import leaks into `domain/` | Screen logic added to rules | Keep `domain/` Phaser-free; render in `presentation/` |
+| Merchant treatable as land | `buyLand` not gated on tile kind | Merchant branch is checked before buy-land in `GameScene.update` |
+| Wild/ruin overwritten on land buy | `buyLand` sets `kind = 'grass'` | Accept for MVP; revisit if resources must persist |
+| Save grows unbounded | Tile array serialized in full | Accept for MVP; may need delta/compression later |
 
 ---
 
 ## 📚 References
 
-- Game mechanics: `IDEA.md`
-- Data models: `docs/ARCHITECTURE.md`
-- Implementation patterns: `docs/DEVELOPMENT.md`
+- Design spec: `docs/superpowers/specs/2026-09-11-open-world-settler-design.md`
+- Architecture & constants: `docs/ARCHITECTURE.md`
+- Development patterns: `docs/DEVELOPMENT.md`
+- Deployment: `docs/DEPLOYMENT.md`

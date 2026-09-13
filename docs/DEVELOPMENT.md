@@ -1,253 +1,110 @@
 # 💻 DEVELOPMENT Guide — Game Development Workflow
 
-> **For AI Agents**: Load this document for game development tasks, coding patterns, and best practices based on IDEA.md.
+> **For AI Agents**: Load this document for coding tasks, layering patterns, and isometric-rendering guidance.
 
 ---
 
-## 🏗️ Architecture: Game-Centric
+## 🧱 Layering & Data Flow
 
-### Data Flow
 ```
-User Action → Game State → Use Case → Repository → Persistence
-     ↑                                                        ↓
-     └────────── UI Update ← State Update ← Result ───────────┘
+input (WASD / joystick / tap) → domain use-case → GameStore state mutation
+      → render from state (Phaser) → autosave (localStorage)
 ```
 
-### Layer Responsibilities
-
-| Layer | Location | What Goes Here |
+| Layer | Location | Rule |
 |---|---|---|
-| **Presentation** | `components/`, `features/*/presentation/` | UI, state management, input handlers |
-| **Domain** | `domain/`, `features/*/domain/` | Game entities, use cases, business rules |
-| **Data** | `data/`, `features/*/data/` | API clients, local storage, sync logic |
+| **Domain** | `src/domain/` | Pure, Phaser-free, Vitest-tested game rules |
+| **Store** | `src/state/store.ts` | Single `GameState`; only mutable handle the scene reads/writes |
+| **Presentation** | `src/presentation/` | Phaser scenes/sprites/input + DOM merchant UI |
+| **Data** | `src/data/store.ts` | `localStorage` save/load adapter |
+| **Config** | `src/config/gameConfig.ts` | Screen/tile/speed constants |
 
-### Key Principles
-- **Single source of truth**: Player document holds complete state
-- **Unidirectional flow**: State changes flow in one direction
-- **Predictable progression**: Level → cap increases, gear provides bonuses
-
----
-
-## 📁 Recommended Project Structure
-
-```
-game-catustry/
-├── app/                          # Game entry points, screens
-│   ├── game/
-│   │   ├── page.tsx              # Main game screen
-│   │   └── components/           # Game-specific UI
-│   └── ...
-├── components/                   # Shared game components
-├── features/                     # Feature modules
-│   ├── player/
-│   │   ├── presentation/         # Player UI, view model
-│   │   ├── domain/              # Player entities, use cases
-│   │   └── data/                # Player repository
-│   ├── guild/
-│   └── gear/
-├── domain/                       # Core game entities, types
-├── data/                         # Data layer, API clients
-├── lib/                          # Utilities, helpers
-└── docs/                         # This documentation
-```
+**Critical constraint:** never import Phaser inside `src/domain/`. Add all rule logic to `domain/` so it stays unit-testable.
 
 ---
 
-## 🎮 Core Game Systems Implementation
+## 📁 Project Structure
 
-### 1. Player System
-
-**Key Features:**
-- Level progression with XP
-- Stat management (speed, stamina, quality)
-- Energy system
-
-**Implementation Patterns:**
-```typescript
-// Domain entity
-interface Player {
-  level: number;
-  xp: number;
-  stats: { speed: number; stamina: number; quality: number };
-  // ...
-}
-
-// Use case for leveling
-class LevelUpUseCase {
-  execute(player: Player): Player {
-    if (this.canLevelUp(player)) {
-      return {
-        ...player,
-        level: player.level + 1,
-        xp: 0,
-        xpToNext: this.getXpForLevel(player.level + 1)
-      };
-    }
-    return player;
-  }
-  
-  private canLevelUp(player: Player): boolean {
-    return player.xp >= this.getXpForLevel(player.level);
-  }
-  
-  private getXpForLevel(level: number): number {
-    const xpTable = [0, 50, 150, 350, 700, 1200, 2000, 3200, 5000, 8000];
-    return xpTable[level - 1] || 0;
-  }
-}
 ```
-
-### 2. Production System
-
-**Key Features:**
-- Crop production with tap counts
-- Tier-based XP rewards
-- Energy consumption
-
-**Implementation Patterns:**
-```typescript
-// Production calculation with gear
-function calculateProduction(baseTaps: number, speed: number, toolBonus: number): number {
-  // Speed reduces taps: each speed level gives 7% reduction
-  const speedModifier = 1 - (0.07 * speed);
-  const afterSpeed = Math.ceil(baseTaps * speedModifier);
-  return Math.max(1, afterSpeed - toolBonus);
-}
-```
-
-### 3. Guild System
-
-**Key Features:**
-- Contribution points
-- Guild shop with medals and gear
-- Guild level discounts
-
-**Implementation Patterns:**
-```typescript
-// Guild shop item with discount
-interface ShopItem {
-  id: string;
-  baseCost: number;
-  discount: number;  // 0.0 to 0.2 based on guild level
-  requiresGuildLevel?: number;
-}
-
-function calculateShopCost(item: ShopItem, guildLevel: number): number {
-  let discount = 0;
-  if (guildLevel >= 5) discount = 0.2;
-  else if (guildLevel >= 3) discount = 0.1;
-  
-  return Math.floor(item.baseCost * (1 - discount));
-}
-```
-
-### 4. Gear System
-
-**Key Features:**
-- 3 slots: Tool, Accessory, Uniform
-- Stacking bonuses
-- Visual indicators
-
-**Implementation Patterns:**
-```typescript
-// Gear with stacking effects
-interface Gear {
-  id: string;
-  slot: 'tool' | 'accessory' | 'uniform';
-  effects: GearEffect[];
-}
-
-interface GearEffect {
-  type: 'tap_reduction' | 'quality_bonus' | 'energy_reduction';
-  value: number;
-  target?: string;  // Optional: specific item type
-}
-
-// Apply gear bonuses
-function applyGearEffects(baseStats: PlayerStats, gear: EquippedGear): ModifiedStats {
-  return {
-    ...baseStats,
-    speed: baseStats.speed + (gear.uniform?.speedBonus || 0),
-    // ... other stacked bonuses
-  };
-}
+src/
+├── config/gameConfig.ts        # width, height, tileWidth, tileHeight, isoRatio, playerSpeed
+├── domain/
+│   ├── types.ts                # GameState, WorldMap, ProductionState, Tile, Item, Recipe, ...
+│   ├── items.ts                # ITEMS, RECIPES, TIER_XP, TIER_ENERGY, XP_THRESHOLDS, FACILITY_UNLOCK, BUILD_COSTS, SEED_COSTS
+│   ├── production.ts           # energyPerTap, hasInputs
+│   ├── energy.ts               # regenEnergy, maxEnergy
+│   ├── level.ts                # xpToNext, maxEnergy, gainXp
+│   ├── economy.ts              # xpForSell, landCost, buildCost, seedCost
+│   ├── actions.ts              # workPlot, workFacility, plantCrop, gatherWild, buildFacility, addItem, itemCount
+│   ├── merchant.ts             # buySeed, sellItem
+│   ├── mapgen.ts               # generateTile, MERCHANT_POS
+│   ├── world.ts                # tileAt, countOwned, isAdjacentToOwned, movePlayer, growWorld, buyLand
+│   ├── state.ts                # createInitialState
+│   └── save.ts                 # serialize, deserialize, migrate, SCHEMA_VERSION
+├── state/store.ts              # GameStore (getState, subscribe, move, buyLand, work*/gather/build/buySeed/sellItem)
+├── data/store.ts               # loadState, saveState
+├── presentation/
+│   ├── GameScene.ts            # main Phaser scene (update loop, interaction detection, autosave)
+│   ├── iso.ts                  # isoToScreen, screenToIso
+│   ├── textures.ts             # makeIsoTileTexture, makeCatTexture
+│   ├── EntitySprites.ts        # drawProductionObjects (emoji sprites for plots/facilities/wild/ruin/merchant)
+│   ├── JoystickInput.ts        # touch joystick
+│   ├── InteractPrompt.ts       # proximity prompt + action button
+│   └── MerchantUI.ts           # DOM merchant shop overlay
+└── main.ts                     # Phaser boot
 ```
 
 ---
 
-## ⚙️ State Management Pattern
+## 🎮 Core Game Systems
 
-### Game State Store
-```typescript
-class GameState {
-  private player: Player;
-  private ui: UIState;
-  private listeners: Set<() => void> = new Set();
+### World & Movement
+- `tileAt(world, gx, gy)` indexes tiles by `gy * width + gx`.
+- `movePlayer` clamps to bounds; `buyLand` checks adjacency and charges `landCost(countOwned(world))`, growing the world by a ring when buying a border tile.
+- `growWorld` shifts existing tile coordinates and appends `generateTile`-generated ring tiles.
 
-  // Actions
-  tapCrop(cropId: string): void {
-    const result = this.useCases.processTap(this.player, cropId);
-    this.player = result.player;
-    this.notify();
-  }
+### Production
+- `workPlot` / `workFacility` consume energy per tap, advance `progress`, and on completion consume inputs, produce the output item, and award tier XP.
+- `plantCrop` consumes a seed to set a plot's crop. `gatherWild` yields a crop, discovers it, and depletes the tile. `buildFacility` charges coins and turns a ruin into a facility.
 
-  buyMedal(type: string): void {
-    const result = this.useCases.buyMedal(this.player, type);
-    if (result.success) {
-      this.player = result.player;
-      this.notify();
-    }
-  }
+### Merchant
+- `buySeed(crop)` requires the crop to be `discoveredCrops`, charges `seedCost`, adds to `seeds`.
+- `sellItem(id, qty)` removes inventory, adds `sell * qty` coins, and awards `xpForSell`.
 
-  subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  private notify(): void {
-    this.listeners.forEach(l => l());
-  }
-}
-```
+### Store
+- `GameStore` wraps all domain use-cases, calls `notify()` on successful (`ok`) actions, and exposes `subscribe(fn)`.
+- All `ActionResult`s are `{ ok: boolean; reason?: string; produced?: ItemId }`. Failures use reasons like `NO_ENERGY`, `NO_SEED`, `LEVEL_LOCKED`, `INSUFFICIENT_COINS`, `NOT_ENOUGH`, `NOT_DISCOVERED`.
 
 ---
 
-## 🧪 Testing Strategy
+## 🏔️ Isometric Rendering Guidance
 
-### Unit Tests (Domain Layer)
-- Test business rules independently
-- Mock repositories
-- Verify edge cases (level caps, gear interactions)
+- Tiles are **flat diamond tiles** (~2:1 ratio; `tileWidth=64`, `tileHeight=32`).
+- `isoToScreen(gx, gy)` maps grid coords to screen pixels; depth = screen `y` so lower tiles render in front.
+- The camera follows the cat (`cameras.main.centerOn(cat.x, cat.y)`).
+- Tile tints: owned tiles use their `TILE_COLORS[tile.kind]`; unowned tiles render dark gray.
+- Proximity interaction: convert the cat's screen position back to a grid tile with `screenToIso` + rounding, then route to the nearest facility/plot/wild/ruin/merchant.
 
-```typescript
-describe('MedalUseCase', () => {
-  it('should reject medal use when at level cap', () => {
-    const player = createPlayer({ level: 3, stats: { speed: 3 } });
-    const result = useMedal(player, 'speed');
-    expect(result.success).toBe(false);
-    expect(result.error).toBe('LEVEL_CAP');
-  });
-});
-```
+---
 
-### Integration Tests (Data Layer)
-- Test API interactions
-- Test storage persistence
-- Test sync scenarios
+## 🧪 Testing
+
+- Run `npm test` (Vitest). Domain functions are pure and unit-tested under `test/`.
+- Follow **TDD**: write the failing test first, then implement, then run `npm test`.
+- Add a test file alongside each new domain module (e.g. `test/merchant.test.ts` for `src/domain/merchant.ts`).
 
 ---
 
 ## 📝 Development Workflow
 
 ```
-1. Understand the feature from IDEA.md
-2. Identify domain entities & use cases
+1. Read the design spec + ARCHITECTURE for the system you're building
+2. Identify domain entities & use-cases
 3. Write domain tests first (TDD)
-4. Implement use cases
-5. Implement data layer
-6. Build UI components
-7. Test end-to-end flow
-8. Document any deviations
+4. Implement domain use-cases
+5. Wire into GameStore
+6. Render/interact in the Phaser scene
+7. Run npm test + npx tsc --noEmit, then verify in npm run dev
 ```
 
 ---
@@ -256,15 +113,19 @@ describe('MedalUseCase', () => {
 
 | Task | Command |
 |---|---|
+| Install deps | `npm install` |
+| Run dev server | `npm run dev` |
 | Run tests | `npm test` |
-| Start dev server | `npm run dev` |
-| Build | `npm run build` |
-| Lint | `npm run lint` |
+| Watch tests | `npm run test:watch` |
+| Type-check only | `npx tsc --noEmit` |
+| Production build | `npm run build` |
+| Preview build | `npm run preview` |
 
 ---
 
 ## 📚 Key Resources
 
-- **Game Spec**: `IDEA.md` (source of truth for all game mechanics)
-- **Architecture**: `docs/ARCHITECTURE.md` (data models, systems overview)
-- **API Design**: See API endpoints in ARCHITECTURE.md
+- Design spec (source of truth): `docs/superpowers/specs/2026-09-11-open-world-settler-design.md`
+- Architecture & data models: `docs/ARCHITECTURE.md`
+- Setup: `docs/SETUP.md`
+- Deployment: `docs/DEPLOYMENT.md`

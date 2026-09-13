@@ -1,95 +1,64 @@
 # 🚀 DEPLOYMENT Guide — Build & Release
 
-> **For AI Agents**: Load this document when building, testing, or releasing the game.
+> **For AI Agents**: Load this document when building or releasing the game.
 
 ---
 
 ## 🔄 Build Pipeline
 
 ```
-Code → Build → Test → Package → Release
+Code → type-check (tsc --noEmit) → production build (vite build) → static dist/
 ```
 
 ---
 
-## 🔧 Development Build
+## 🔧 Production Build
 
 ```bash
-# Build for local testing
+# Type-checks (tsc --noEmit) then bundles with Vite
 npm run build
-
-# Run tests
-npm test
 ```
+
+The output is a **static site** in `dist/`. Deploy `dist/` to any static host (Netlify, Vercel, GitHub Pages, S3, etc.).
 
 ---
 
-## 📦 Production Deployment
+## 🚀 Deployment
 
-### Local Build
-```bash
-npm run build
-```
+The game is **client-only** — no backend, no server, no database. Player progress is stored in the browser's `localStorage` (key `catustry-save`).
 
-### APK Generation (if using Capacitor)
-```bash
-# Build web assets
-npm run build
-
-# Sync to native platform
-npx cap sync android
-
-# Build APK
-cd android && ./gradlew assembleRelease
-```
-
-> **Note**: IDEA.md specifies game mechanics, not build infrastructure. For APK building, follow standard Capacitor/Next.js documentation.
+1. Run `npm run build` to produce `dist/`.
+2. Upload `dist/` to your static hosting provider.
+3. (Optional) preview locally first with `npm run preview`.
 
 ---
 
-## 🚀 Automated Deployment (Agentic Workflow)
+## 💾 Save Data Notes
 
-For agentic development workflows:
-1. Code changes push to trigger cloud builds
-2. Tests run automatically
-3. Artifacts generated and available for download
+- Saves are local to each browser/device (`localStorage`). There is **no cloud sync** in MVP.
+- The save schema is versioned (`SCHEMA_VERSION = 1` in `src/domain/save.ts`); future breaking changes should add a `migrate` path.
+
+---
+
+## ⛔ Deferred Out of MVP
+
+- **APK / Capacitor / native mobile packaging** — the current build is a web app only.
+- **Cloud sync / cross-device saves** — requires a backend, deferred.
 
 ---
 
 ## 🔧 Build Troubleshooting
 
 If builds fail:
-- See `docs/TROUBLESHOOTING.md` for debugging patterns
-- Check build logs for specific errors
-- Verify environment variables and secrets
-
----
-
-## 📌 Key Considerations for Game Deployment
-
-Based on IDEA.md, consider:
-
-### 1. Save System
-- Player progress must persist between sessions
-- Consider cloud sync for cross-device play
-
-### 2. Data Model Versioning
-- As new features are added (medals, gear), update database schemas
-- Implement migration paths for existing players
-
-### 3. Guild System Integration
-- Guild data must be shared across members
-- Consider real-time updates for guild contributions
-
-### 4. Monetization Readiness
-- Shop system supports coins and contribution points
-- Consider how to handle in-app purchases (future)
+- See `docs/TROUBLESHOOTING.md` for debugging patterns.
+- Run `npx tsc --noEmit` to isolate type errors vs. bundling errors.
+- Check the build log for specific errors.
 
 ---
 
 ## 📚 References
 
-- Game specification: `IDEA.md`
-- Development workflow: `docs/DEVELOPMENT.md`
+- Game specification: `docs/superpowers/specs/2026-09-11-open-world-settler-design.md`
 - Architecture: `docs/ARCHITECTURE.md`
+- Development workflow: `docs/DEVELOPMENT.md`
 - Troubleshooting: `docs/TROUBLESHOOTING.md`
