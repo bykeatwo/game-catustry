@@ -17,7 +17,7 @@ function overlapsMerchant(gx: number, gy: number): boolean {
   return gx <= mx && mx < gx + FACILITY_SIZE && gy <= my && my < gy + FACILITY_SIZE;
 }
 
-export function generateTile(gx: number, gy: number): Tile {
+export function generateTile(gx: number, gy: number, width = Infinity, height = Infinity): Tile {
   if (gx === MERCHANT_POS.x && gy === MERCHANT_POS.y) {
     return { gx, gy, kind: 'merchant', owned: false };
   }
@@ -25,8 +25,9 @@ export function generateTile(gx: number, gy: number): Tile {
   const r = h % 100;
   if (r < 20) return { gx, gy, kind: 'wild', owned: false, resource: CROPS[h % CROPS.length] };
   if (r < 26) {
-    // Ruins that would block the merchant (or be unbuildable next to it) become grass.
+    // Ruins must have a fully in-bounds 2x2 footprint and not overlap the merchant.
     if (overlapsMerchant(gx, gy)) return { gx, gy, kind: 'grass', owned: false };
+    if (gx + FACILITY_SIZE > width || gy + FACILITY_SIZE > height) return { gx, gy, kind: 'grass', owned: false };
     return { gx, gy, kind: 'ruin', owned: false, ruinType: RUINS[h % RUINS.length] };
   }
   return { gx, gy, kind: 'grass', owned: false };

@@ -8,7 +8,7 @@ export function createInitialState(): GameState {
   for (let gy = 0; gy < START_MAP; gy++) {
     for (let gx = 0; gx < START_MAP; gx++) {
       // a 3x3 starting area around spawn is owned grass; the rest is procedurally generated
-      tiles.push(gx < 3 && gy < 3 ? { gx, gy, kind: 'grass', owned: true } : generateTile(gx, gy));
+      tiles.push(gx < 3 && gy < 3 ? { gx, gy, kind: 'grass', owned: true } : generateTile(gx, gy, START_MAP, START_MAP));
     }
   }
   return {

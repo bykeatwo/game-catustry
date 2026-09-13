@@ -26,4 +26,15 @@ describe('generateTile', () => {
       }
     }
   });
+  it('never places a ruin whose footprint exceeds the map bounds', () => {
+    const W = 12, H = 12;
+    for (let gy = 0; gy < H; gy++) {
+      for (let gx = 0; gx < W; gx++) {
+        const t = generateTile(gx, gy, W, H);
+        if (t.kind !== 'ruin') continue;
+        expect(gx + FACILITY_SIZE <= W).toBe(true);
+        expect(gy + FACILITY_SIZE <= H).toBe(true);
+      }
+    }
+  });
 });

@@ -36,7 +36,7 @@ export function growWorld(w: WorldMap, ring = 1): void {
       if (ogx >= 0 && ogy >= 0 && ogx < w.width && ogy < w.height) {
         t = { ...(tileAt(w, ogx, ogy)!), gx, gy };
       } else {
-        t = generateTile(gx, gy);
+        t = generateTile(gx, gy, newW, newH);
       }
       next.push(t);
     }
