@@ -10,7 +10,7 @@ import { GameStore } from '../state/store';
 import { createInitialState } from '../domain/state';
 import { tileAt, isAdjacentToOwned, countOwned } from '../domain/world';
 import { landCost } from '../domain/economy';
-import { loadState } from '../data/store';
+import { loadState, saveState } from '../data/store';
 
 const TILE_COLORS: Record<string, number> = {
   grass: 0x6a9a54, unowned: 0x3a3a3a, wild: 0x7ab84a,
@@ -47,6 +47,14 @@ export class GameScene extends Phaser.Scene {
     this.renderWorld();
     this.createCat();
     this.cameras.main.setBounds(-2000, -2000, 4000, 4000);
+
+    // autosave: debounced on change + periodic fallback
+    let saveTimer: number | undefined;
+    this.store.subscribe(() => {
+      window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(() => saveState(this.store.getState()), 500);
+    });
+    this.time.addEvent({ delay: 5000, loop: true, callback: () => saveState(this.store.getState()) });
   }
 
   private tileKey(gx: number, gy: number): string { return `${gx},${gy}`; }
