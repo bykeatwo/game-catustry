@@ -1,6 +1,7 @@
-import { GameState, CropId } from '../domain/types';
+import { GameState, CropId, ItemId } from '../domain/types';
 import { movePlayer, buyLand as buyLandFn, BuyResult } from '../domain/world';
 import { workPlot as wp, workFacility as wf, plantCrop as pc, gatherWild as gw, buildFacility as bf, ActionResult } from '../domain/actions';
+import { buySeed as bs, sellItem as si } from '../domain/merchant';
 
 type Listener = () => void;
 
@@ -40,4 +41,6 @@ export class GameStore {
   plantCrop(i: number, crop: CropId): ActionResult { return this.run(() => pc(this.state, i, crop)); }
   gatherWild(gx: number, gy: number): ActionResult { return this.run(() => gw(this.state, gx, gy)); }
   buildFacility(gx: number, gy: number): ActionResult { return this.run(() => bf(this.state, gx, gy)); }
+  buySeed(crop: CropId): ActionResult { return this.run(() => bs(this.state, crop)); }
+  sellItem(id: ItemId, qty = 1): ActionResult { return this.run(() => si(this.state, id, qty)); }
 }

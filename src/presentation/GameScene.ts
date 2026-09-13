@@ -10,6 +10,7 @@ import { GameStore } from '../state/store';
 import { createInitialState } from '../domain/state';
 import { tileAt, isAdjacentToOwned, countOwned } from '../domain/world';
 import { landCost } from '../domain/economy';
+import { loadState } from '../data/store';
 
 const TILE_COLORS: Record<string, number> = {
   grass: 0x6a9a54, unowned: 0x3a3a3a, wild: 0x7ab84a,
@@ -29,7 +30,7 @@ export class GameScene extends Phaser.Scene {
 
   constructor() { super('GameScene'); }
 
-  init(): void { this.store = new GameStore(createInitialState()); }
+  init(): void { this.store = new GameStore(loadState() ?? createInitialState()); }
 
   create(): void {
     makeIsoTileTexture(this);
