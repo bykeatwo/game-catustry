@@ -6,6 +6,7 @@ import { JoystickInput } from './JoystickInput';
 import { InteractPrompt } from './InteractPrompt';
 import { drawProductionObjects } from './EntitySprites';
 import { regenEnergy, maxEnergy } from '../domain/energy';
+import { ITEMS } from '../domain/items';
 import { GameStore } from '../state/store';
 import { createInitialState } from '../domain/state';
 import { tileAt, isAdjacentToOwned, countOwned } from '../domain/world';
@@ -19,6 +20,15 @@ const TILE_COLORS: Record<string, number> = {
   ruin: 0x8a6a3a, merchant: 0xc9a227, water: 0x4a7aa0
 };
 
+const ITEM_EMOJI: Record<string, string> = {
+  wheat: '🌾', carrot: '🥕', potato: '🥔', egg: '🥚',
+  flour: '🥣', carrot_juice: '🧃', mashed: '🥔', omelette: '🍳',
+  bread: '🍞', carrot_cake: '🍰', crisps: '🍟', pie: '🥧',
+  feast: '🍽️', royal: '👑'
+};
+
+const Z_FLOOR = -1000;
+
 export class GameScene extends Phaser.Scene {
   private store!: GameStore;
   private cat!: Phaser.GameObjects.Sprite;
@@ -29,6 +39,7 @@ export class GameScene extends Phaser.Scene {
   private prompt!: InteractPrompt;
   private prodGroup!: Phaser.GameObjects.Group;
   private hud!: Phaser.GameObjects.Text;
+  private inv!: Phaser.GameObjects.Text;
   private shop!: MerchantUI;
 
   constructor() { super('GameScene'); }
@@ -45,8 +56,14 @@ export class GameScene extends Phaser.Scene {
     this.prompt = new InteractPrompt(this);
     this.shop = new MerchantUI(this.store);
     this.prodGroup = this.add.group();
-    this.hud = this.add.text(16, 16, '', { fontSize: '16px', color: '#fff', backgroundColor: '#00000088' })
+
+    // HUD — top-left
+    this.hud = this.add.text(16, 16, '', { fontSize: '16px', color: '#fff', backgroundColor: '#00000088', padding: { x: 8, y: 4 } })
       .setScrollFactor(0).setDepth(1000);
+
+    // Inventory — top-right
+    this.inv = this.add.text(GAME_CONFIG.width - 16, 16, '', { fontSize: '13px', color: '#fff', backgroundColor: '#00000088', padding: { x: 8, y: 4 }, align: 'right' })
+      .setOrigin(1, 0).setScrollFactor(0).setDepth(1000);
 
     this.store.subscribe(() => this.renderWorld());
     this.renderWorld();
@@ -68,7 +85,7 @@ export class GameScene extends Phaser.Scene {
     const state = this.store.getState();
     const seen = new Set<string>();
 
-    // tiles
+    // floor tiles — always behind the cat and entities
     for (const tile of state.world.tiles) {
       const key = this.tileKey(tile.gx, tile.gy);
       seen.add(key);
@@ -76,15 +93,15 @@ export class GameScene extends Phaser.Scene {
       let img = this.tileSprites.get(key);
       if (!img) {
         img = this.add.image(0, 0, 'isoTile');
-        img.setDepth(y);
         this.tileSprites.set(key, img);
       }
       img.setPosition(x, y);
+      img.setDepth(Z_FLOOR);
       img.setTint(tile.owned ? TILE_COLORS[tile.kind] ?? 0x6a9a54 : 0x3a3a3a);
     }
     for (const [key, img] of this.tileSprites) if (!seen.has(key)) { img.destroy(); this.tileSprites.delete(key); }
 
-    // production objects (plots, facilities, wild/ruin)
+    // production objects (plots, facilities, wild/ruin/merchant) — y-based occlusion
     drawProductionObjects(this, this.store, this.prodGroup);
   }
 
@@ -97,6 +114,19 @@ export class GameScene extends Phaser.Scene {
   private refreshHUD(): void {
     const s = this.store.getState().production;
     this.hud.setText(`🪙 ${s.coins}   ⚡ ${Math.floor(s.energy)}/${maxEnergy(s.level)}   Lv ${s.level}`);
+
+    // inventory (harvested goods) + seeds
+    const inv = Object.entries(s.inventory).filter(([, q]) => (q ?? 0) > 0) as [string, number][];
+    const seeds = Object.entries(s.seeds).filter(([, q]) => (q ?? 0) > 0) as [string, number][];
+    const invStr = inv.length ? inv.map(([id, q]) => `${ITEM_EMOJI[id] ?? id}${q}`).join(' ') : '—';
+    const seedStr = seeds.length ? `🌰 ${seeds.map(([id, q]) => `${ITEM_EMOJI[id] ?? id}${q}`).join(' ')}` : '';
+    this.inv.setText(`🎒 ${invStr}${seedStr ? '\n' + seedStr : ''}`);
+  }
+
+  private floatText(x: number, y: number, msg: string): void {
+    const t = this.add.text(x, y - 20, msg, { fontSize: '15px', color: '#ffd54f', backgroundColor: '#000000aa', padding: { x: 4, y: 2 } })
+      .setOrigin(0.5).setDepth(10000);
+    this.tweens.add({ targets: t, y: y - 46, alpha: 0, duration: 700, onComplete: () => t.destroy() });
   }
 
   update(_time: number, delta: number): void {
@@ -115,7 +145,7 @@ export class GameScene extends Phaser.Scene {
       this.cat.x += dx * step;
       this.cat.y += dy * step;
     }
-    this.cat.setDepth(this.cat.y);
+    this.cat.setDepth(this.cat.y + 0.5);
     this.cameras.main.centerOn(this.cat.x, this.cat.y);
 
     // energy regen
@@ -128,40 +158,48 @@ export class GameScene extends Phaser.Scene {
     const tx = Math.round(cx), ty = Math.round(cy);
     const target = tileAt(state.world, tx, ty);
 
-    // prioritize facility > plot > merchant > wild/ruin over land-buying
     const fac = state.production.facilities.find(f => f.gx === tx && f.gy === ty);
     const plot = state.production.plots.find(p => p.gx === tx && p.gy === ty);
 
     if (target?.kind !== 'merchant') this.shop.close();
 
     if (fac) {
-      this.prompt.show(`Work ${fac.type}`, 'Tap to work', () => {
-        const result = this.store.workFacility(state.production.facilities.indexOf(fac));
-        if (result.ok) playSfx('harvest');
+      const idx = state.production.facilities.indexOf(fac);
+      const prog = fac.recipe ? ` — ${fac.progress}/${ITEMS[fac.recipe].taps}` : '';
+      this.prompt.show(`Work ${fac.type}${prog}`, 'Tap to work', () => {
+        const r = this.store.workFacility(idx);
+        if (r.ok) {
+          if (r.produced) { playSfx('harvest'); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced] ?? ''} +1`); }
+          else { playSfx('tap'); this.floatText(this.cat.x, this.cat.y, '+1'); }
+        }
       });
     } else if (plot && plot.crop) {
-      this.prompt.show(`Work ${plot.crop}`, 'Tap to work', () => {
-        const result = this.store.workPlot(state.production.plots.indexOf(plot));
-        if (result.ok) playSfx('harvest');
+      const idx = state.production.plots.indexOf(plot);
+      this.prompt.show(`Work ${plot.crop} — ${plot.progress}/${ITEMS[plot.crop].taps}`, 'Tap to work', () => {
+        const r = this.store.workPlot(idx);
+        if (r.ok) {
+          if (r.produced) { playSfx('harvest'); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced] ?? ''} +1`); }
+          else { playSfx('tap'); this.floatText(this.cat.x, this.cat.y, '+1'); }
+        }
       });
     } else if (target?.kind === 'merchant') {
       this.prompt.show('Open merchant', 'Trade', () => { this.shop.open(); });
     } else if (target?.kind === 'wild' && target.resource) {
       this.prompt.show(`Gather ${target.resource}`, 'Gather', () => {
-        const result = this.store.gatherWild(tx, ty);
-        if (result.ok) playSfx('gather');
+        const r = this.store.gatherWild(tx, ty);
+        if (r.ok) { playSfx('gather'); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced ?? ''] ?? ''} +1`); }
       });
     } else if (target?.kind === 'ruin' && target.ruinType) {
       const cost = buildCost(target.ruinType);
       this.prompt.show(`Build ${target.ruinType} — ${cost} 🪙`, 'Build', () => {
-        const result = this.store.buildFacility(tx, ty);
-        if (result.ok) playSfx('build');
+        const r = this.store.buildFacility(tx, ty);
+        if (r.ok) { playSfx('build'); this.floatText(this.cat.x, this.cat.y, 'Built!'); }
       });
     } else if (target && !target.owned && isAdjacentToOwned(state.world, tx, ty)) {
       const cost = landCost(countOwned(state.world));
       this.prompt.show(`Buy land — ${cost} 🪙`, 'Buy', () => {
-        this.store.buyLand(tx, ty);
-        playSfx('tap');
+        const r = this.store.buyLand(tx, ty);
+        if (r.ok) playSfx('tap');
       });
     } else {
       this.prompt.hide();
