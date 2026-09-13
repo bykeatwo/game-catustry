@@ -11,6 +11,7 @@ import { createInitialState } from '../domain/state';
 import { tileAt, isAdjacentToOwned, countOwned } from '../domain/world';
 import { landCost } from '../domain/economy';
 import { loadState, saveState } from '../data/store';
+import { MerchantUI } from './MerchantUI';
 
 const TILE_COLORS: Record<string, number> = {
   grass: 0x6a9a54, unowned: 0x3a3a3a, wild: 0x7ab84a,
@@ -27,6 +28,7 @@ export class GameScene extends Phaser.Scene {
   private prompt!: InteractPrompt;
   private prodGroup!: Phaser.GameObjects.Group;
   private hud!: Phaser.GameObjects.Text;
+  private shop!: MerchantUI;
 
   constructor() { super('GameScene'); }
 
@@ -39,6 +41,7 @@ export class GameScene extends Phaser.Scene {
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.joystick = new JoystickInput(this);
     this.prompt = new InteractPrompt(this);
+    this.shop = new MerchantUI(this.store);
     this.prodGroup = this.add.group();
     this.hud = this.add.text(16, 16, '', { fontSize: '16px', color: '#fff', backgroundColor: '#00000088' })
       .setScrollFactor(0).setDepth(1000);
@@ -123,14 +126,18 @@ export class GameScene extends Phaser.Scene {
     const tx = Math.round(cx), ty = Math.round(cy);
     const target = tileAt(state.world, tx, ty);
 
-    // prioritize facility > plot > wild/ruin over land-buying
+    // prioritize facility > plot > merchant > wild/ruin over land-buying
     const fac = state.production.facilities.find(f => f.gx === tx && f.gy === ty);
     const plot = state.production.plots.find(p => p.gx === tx && p.gy === ty);
+
+    if (target?.kind !== 'merchant') this.shop.close();
 
     if (fac) {
       this.prompt.show(`Work ${fac.type}`, 'Tap to work', () => { this.store.workFacility(state.production.facilities.indexOf(fac)); });
     } else if (plot && plot.crop) {
       this.prompt.show(`Work ${plot.crop || 'plot'}`, 'Tap to work', () => { this.store.workPlot(state.production.plots.indexOf(plot)); });
+    } else if (target?.kind === 'merchant') {
+      this.prompt.show('Open merchant', 'Trade', () => { this.shop.open(); });
     } else if (target?.kind === 'wild' && target.resource) {
       this.prompt.show(`Gather ${target.resource}`, 'Gather', () => { this.store.gatherWild(tx, ty); });
     } else if (target?.kind === 'ruin' && target.ruinType) {

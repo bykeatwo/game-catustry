@@ -7,6 +7,15 @@
 </head>
 <body>
   <div id="game"></div>
+  <div id="shop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50;">
+    <div style="margin:10% auto; width:min(90%,420px); background:#fff; color:#222; border-radius:12px; padding:16px;">
+      <h2 style="margin:0 0 8px;">🏪 Merchant</h2>
+      <div id="shop-seeds"></div>
+      <h3>Your goods</h3>
+      <div id="shop-sell"></div>
+      <button id="shop-close">Close</button>
+    </div>
+  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
