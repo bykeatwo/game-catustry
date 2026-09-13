@@ -15,6 +15,7 @@ export interface Item {
 }
 
 export type FacilityType = 'mill' | 'bakery' | 'gourmet';
+export const FACILITY_SIZE = 2; // facilities occupy a 2x2 tile footprint (gx,gy = north-west corner)
 export type CropId = 'wheat' | 'carrot' | 'potato' | 'egg';
 export type RecipeId = Exclude<ItemId, CropId>;
 

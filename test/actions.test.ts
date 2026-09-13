@@ -11,12 +11,13 @@ function scene(): GameState {
 }
 
 describe('workPlot', () => {
-  it('progresses and harvests after enough taps', () => {
+  it('progresses and harvests after enough taps, emptying the plot', () => {
     const s = scene();
     let produced: string | undefined;
     for (let i = 0; i < 5; i++) produced = workPlot(s, 0).produced; // wheat taps 5
     expect(produced).toBe('wheat');
     expect(itemCount(s.production.inventory, 'wheat')).toBe(1);
+    expect(s.production.plots[0].crop).toBeNull(); // harvested → empty
   });
   it('consumes energy per tap', () => {
     const s = scene(); s.production.energy = 3;
@@ -76,21 +77,29 @@ describe('gatherWild', () => {
 });
 
 describe('buildFacility', () => {
-  it('builds a mill at a ruin and deducts coins', () => {
+  it('builds a mill at a ruin, charging 4x for the 2x2 footprint', () => {
+    const s = scene();
+    // 2x2 footprint (6,6),(7,6),(6,7),(7,7) avoids the merchant at (4,4)
+    const t = s.world.tiles.find(t => t.gx === 6 && t.gy === 6)!;
+    t.kind = 'ruin'; t.ruinType = 'mill';
+    s.production.level = 3;
+    const r = buildFacility(s, 6, 6);
+    expect(r.ok).toBe(true);
+    expect(s.production.facilities).toHaveLength(1);
+    expect(s.production.facilities[0].type).toBe('mill');
+    expect(s.production.coins).toBe(1000 - 400); // mill 100 * 2x2 = 400
+  });
+  it('rejects when level locked', () => {
+    const s = scene();
+    const t = s.world.tiles.find(t => t.gx === 6 && t.gy === 6)!;
+    t.kind = 'ruin'; t.ruinType = 'bakery';
+    expect(buildFacility(s, 6, 6).reason).toBe('LEVEL_LOCKED');
+  });
+  it('rejects a footprint overlapping the merchant', () => {
     const s = scene();
     const t = s.world.tiles.find(t => t.gx === 3 && t.gy === 3)!;
     t.kind = 'ruin'; t.ruinType = 'mill';
     s.production.level = 3;
-    const r = buildFacility(s, 3, 3);
-    expect(r.ok).toBe(true);
-    expect(s.production.facilities).toHaveLength(1);
-    expect(s.production.facilities[0].type).toBe('mill');
-    expect(s.production.coins).toBe(1000 - 100);
-  });
-  it('rejects when level locked', () => {
-    const s = scene();
-    const t = s.world.tiles.find(t => t.gx === 3 && t.gy === 3)!;
-    t.kind = 'ruin'; t.ruinType = 'bakery';
-    expect(buildFacility(s, 3, 3).reason).toBe('LEVEL_LOCKED');
+    expect(buildFacility(s, 3, 3).reason).toBe('BLOCKED'); // footprint hits merchant at (4,4)
   });
 });

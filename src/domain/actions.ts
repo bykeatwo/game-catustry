@@ -1,4 +1,4 @@
-import { GameState, CropId, Inventory, ItemId } from './types';
+import { GameState, CropId, Inventory, ItemId, Facility, FACILITY_SIZE } from './types';
 import { ITEMS, RECIPES, TIER_XP, FACILITY_UNLOCK } from './items';
 import { energyPerTap, hasInputs } from './production';
 import { gainXp } from './level';
@@ -16,6 +16,12 @@ export function itemCount(inv: Inventory, id: ItemId): number {
   return inv[id] ?? 0;
 }
 
+export function facilityAt(facilities: Facility[], gx: number, gy: number): Facility | undefined {
+  return facilities.find(f =>
+    gx >= f.gx && gx < f.gx + FACILITY_SIZE && gy >= f.gy && gy < f.gy + FACILITY_SIZE
+  );
+}
+
 export function workPlot(s: GameState, plotIndex: number): ActionResult {
   const plot = s.production.plots[plotIndex];
   if (!plot || !plot.crop) return { ok: false, reason: 'EMPTY_PLOT' };
@@ -28,6 +34,7 @@ export function workPlot(s: GameState, plotIndex: number): ActionResult {
     addItem(s.production.inventory, item.id, 1);
     gainXp(s.production, TIER_XP.raw);
     plot.progress = 0;
+    plot.crop = null; // harvested — must re-plant to grow again
     return { ok: true, produced: item.id };
   }
   return { ok: true };
@@ -83,14 +90,34 @@ export function buildFacility(s: GameState, gx: number, gy: number): ActionResul
   if (!t || t.kind !== 'ruin' || !t.ruinType) return { ok: false, reason: 'NO_RUIN' };
   const type = t.ruinType;
   if (s.production.level < FACILITY_UNLOCK[type]) return { ok: false, reason: 'LEVEL_LOCKED' };
-  const cost = buildCost(type);
+  // 2x2 footprint costs 4x single-tile cost
+  const cost = buildCost(type) * FACILITY_SIZE * FACILITY_SIZE;
   if (s.production.coins < cost) return { ok: false, reason: 'INSUFFICIENT_COINS' };
+
+  // validate the 2x2 footprint is within bounds, not blocked, not already occupied
+  for (let oy = 0; oy < FACILITY_SIZE; oy++) {
+    for (let ox = 0; ox < FACILITY_SIZE; ox++) {
+      const ct = tileAt(s.world, gx + ox, gy + oy);
+      if (!ct) return { ok: false, reason: 'OUT_OF_BOUNDS' };
+      if (ct.kind === 'merchant') return { ok: false, reason: 'BLOCKED' };
+      if (facilityAt(s.production.facilities, gx + ox, gy + oy)) return { ok: false, reason: 'OCCUPIED' };
+    }
+  }
+
   s.production.coins -= cost;
   s.production.facilities.push({
     id: `fac-${s.production.facilities.length}`,
     gx, gy, type, recipe: null, progress: 0
   });
-  t.kind = 'grass';
-  delete t.ruinType;
+
+  // clear the 2x2 footprint
+  for (let oy = 0; oy < FACILITY_SIZE; oy++) {
+    for (let ox = 0; ox < FACILITY_SIZE; ox++) {
+      const ct = tileAt(s.world, gx + ox, gy + oy)!;
+      ct.kind = 'grass';
+      delete ct.ruinType;
+      delete ct.resource;
+    }
+  }
   return { ok: true };
 }

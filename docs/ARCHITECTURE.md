@@ -93,7 +93,7 @@ Communication direction: the world records *where* things are; `ProductionState`
 | Crafted (Bakery) | bread, carrot cake, crisps, pie |
 | Gourmet (Gourmet Studio) | gourmet feast, royal platter |
 
-Each item has `taps` (work-taps to complete) and `sell` (coin value). Recipes declare inputs and the facility/level required.
+Each item has `taps` (work-taps to complete) and `sell` (coin value). Recipes declare inputs and the facility/level required. Farm plots are worked tap-by-tap; on completion the crop is **harvested** and the plot becomes **empty**. To grow again, plant a seed (bought from the merchant) at the empty plot via the plant overlay.
 
 ---
 
@@ -128,7 +128,7 @@ These live in `src/domain/items.ts`, `economy.ts`, `level.ts`, and `energy.ts`.
 
 ### Economy (coins are the only currency)
 - **Land cost**: `50 + ownedCount * 10`.
-- **Build costs**: farm 50, mill 100, bakery 250, gourmet 800.
+- **Build costs**: farm 50, mill 100, bakery 250, gourmet 800 (mill/bakery/gourmet are **2×2** and cost `base × 4`).
 - **Seed costs**: wheat 5, carrot 10, potato 15, egg 12.
 
 ---

@@ -13,7 +13,11 @@ import { tileAt, isAdjacentToOwned, countOwned } from '../domain/world';
 import { landCost, buildCost } from '../domain/economy';
 import { loadState, saveState } from '../data/store';
 import { MerchantUI } from './MerchantUI';
+import { PlantUI } from './PlantUI';
 import { playSfx, initAudio } from '../audio/audioManager';
+import { facilityAt } from '../domain/actions';
+import { FACILITY_SIZE } from '../domain/types';
+import { errorMessage } from './messages';
 
 const TILE_COLORS: Record<string, number> = {
   grass: 0x6a9a54, unowned: 0x3a3a3a, wild: 0x7ab84a,
@@ -41,6 +45,7 @@ export class GameScene extends Phaser.Scene {
   private hud!: Phaser.GameObjects.Text;
   private inv!: Phaser.GameObjects.Text;
   private shop!: MerchantUI;
+  private plant!: PlantUI;
 
   constructor() { super('GameScene'); }
 
@@ -55,6 +60,7 @@ export class GameScene extends Phaser.Scene {
     this.joystick = new JoystickInput(this);
     this.prompt = new InteractPrompt(this);
     this.shop = new MerchantUI(this.store);
+    this.plant = new PlantUI(this.store);
     this.prodGroup = this.add.group();
 
     // HUD — top-left
@@ -123,10 +129,14 @@ export class GameScene extends Phaser.Scene {
     this.inv.setText(`🎒 ${invStr}${seedStr ? '\n' + seedStr : ''}`);
   }
 
-  private floatText(x: number, y: number, msg: string): void {
-    const t = this.add.text(x, y - 20, msg, { fontSize: '15px', color: '#ffd54f', backgroundColor: '#000000aa', padding: { x: 4, y: 2 } })
+  private floatText(x: number, y: number, msg: string, color = '#ffd54f'): void {
+    const t = this.add.text(x, y - 20, msg, { fontSize: '15px', color, backgroundColor: '#000000aa', padding: { x: 4, y: 2 } })
       .setOrigin(0.5).setDepth(10000);
-    this.tweens.add({ targets: t, y: y - 46, alpha: 0, duration: 700, onComplete: () => t.destroy() });
+    this.tweens.add({ targets: t, y: y - 46, alpha: 0, duration: 900, onComplete: () => t.destroy() });
+  }
+
+  private showError(reason?: string): void {
+    this.floatText(this.cat.x, this.cat.y, errorMessage(reason), '#ff6b6b');
   }
 
   update(_time: number, delta: number): void {
@@ -158,10 +168,11 @@ export class GameScene extends Phaser.Scene {
     const tx = Math.round(cx), ty = Math.round(cy);
     const target = tileAt(state.world, tx, ty);
 
-    const fac = state.production.facilities.find(f => f.gx === tx && f.gy === ty);
+    const fac = facilityAt(state.production.facilities, tx, ty);
     const plot = state.production.plots.find(p => p.gx === tx && p.gy === ty);
 
     if (target?.kind !== 'merchant') this.shop.close();
+    if (!(plot && !plot.crop)) this.plant.close();
 
     if (fac) {
       const idx = state.production.facilities.indexOf(fac);
@@ -171,7 +182,7 @@ export class GameScene extends Phaser.Scene {
         if (r.ok) {
           if (r.produced) { playSfx('harvest'); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced] ?? ''} +1`); }
           else { playSfx('tap'); this.floatText(this.cat.x, this.cat.y, '+1'); }
-        }
+        } else { this.showError(r.reason); }
       });
     } else if (plot && plot.crop) {
       const idx = state.production.plots.indexOf(plot);
@@ -180,26 +191,31 @@ export class GameScene extends Phaser.Scene {
         if (r.ok) {
           if (r.produced) { playSfx('harvest'); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced] ?? ''} +1`); }
           else { playSfx('tap'); this.floatText(this.cat.x, this.cat.y, '+1'); }
-        }
+        } else { this.showError(r.reason); }
       });
+    } else if (plot && !plot.crop) {
+      this.prompt.show('Empty plot', 'Plant', () => { this.plant.open(state.production.plots.indexOf(plot)); });
     } else if (target?.kind === 'merchant') {
       this.prompt.show('Open merchant', 'Trade', () => { this.shop.open(); });
     } else if (target?.kind === 'wild' && target.resource) {
       this.prompt.show(`Gather ${target.resource}`, 'Gather', () => {
         const r = this.store.gatherWild(tx, ty);
         if (r.ok) { playSfx('gather'); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced ?? ''] ?? ''} +1`); }
+        else { this.showError(r.reason); }
       });
     } else if (target?.kind === 'ruin' && target.ruinType) {
-      const cost = buildCost(target.ruinType);
-      this.prompt.show(`Build ${target.ruinType} — ${cost} 🪙`, 'Build', () => {
+      const cost = buildCost(target.ruinType) * FACILITY_SIZE * FACILITY_SIZE;
+      this.prompt.show(`Build ${target.ruinType} (2×2) — ${cost} 🪙`, 'Build', () => {
         const r = this.store.buildFacility(tx, ty);
-        if (r.ok) { playSfx('build'); this.floatText(this.cat.x, this.cat.y, 'Built!'); }
+        if (r.ok) { playSfx('build'); this.floatText(this.cat.x, this.cat.y, `Built ${target.ruinType}!`); }
+        else { this.showError(r.reason); }
       });
     } else if (target && !target.owned && isAdjacentToOwned(state.world, tx, ty)) {
       const cost = landCost(countOwned(state.world));
       this.prompt.show(`Buy land — ${cost} 🪙`, 'Buy', () => {
         const r = this.store.buyLand(tx, ty);
         if (r.ok) playSfx('tap');
+        else this.showError(r.reason);
       });
     } else {
       this.prompt.hide();

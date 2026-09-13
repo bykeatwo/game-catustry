@@ -3,6 +3,7 @@ import { GAME_CONFIG } from '../config/gameConfig';
 import { isoToScreen } from './iso';
 import { GameStore } from '../state/store';
 import { ITEMS } from '../domain/items';
+import { FACILITY_SIZE } from '../domain/types';
 
 const EMBLEM: Record<string, string> = {
   mill: '🏭', bakery: '🥖', gourmet: '👨‍🍳', plot: '🌱', ruin: '🧱', wild: '🌾', merchant: '🏪'
@@ -31,12 +32,15 @@ export function drawProductionObjects(scene: Phaser.Scene, store: GameStore, gro
     }
   }
   for (const f of production.facilities) {
-    const { x, y } = isoToScreen(f.gx, f.gy, GAME_CONFIG.tileWidth, GAME_CONFIG.tileHeight);
-    const label = scene.add.text(x, y, EMBLEM[f.type], { fontSize: '22px' }).setOrigin(0.5).setDepth(y);
+    // 2x2 facility: render at the center of the footprint, larger emblem
+    const cx = f.gx + (FACILITY_SIZE - 1) / 2;
+    const cy = f.gy + (FACILITY_SIZE - 1) / 2;
+    const { x, y } = isoToScreen(cx, cy, GAME_CONFIG.tileWidth, GAME_CONFIG.tileHeight);
+    const label = scene.add.text(x, y, EMBLEM[f.type], { fontSize: '30px' }).setOrigin(0.5).setDepth(y);
     group.add(label);
     if (f.recipe) {
       const taps = ITEMS[f.recipe].taps;
-      const txt = scene.add.text(x, y + 16, `${f.progress}/${taps}`, { fontSize: '11px', color: '#fff', backgroundColor: '#000000aa' })
+      const txt = scene.add.text(x, y + 20, `${f.progress}/${taps}`, { fontSize: '11px', color: '#fff', backgroundColor: '#000000aa' })
         .setOrigin(0.5).setDepth(y + 1);
       group.add(txt);
     }
