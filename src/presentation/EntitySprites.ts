@@ -4,7 +4,7 @@ import { isoToScreen } from './iso';
 import { GameStore } from '../state/store';
 
 const EMBLEM: Record<string, string> = {
-  mill: '🏭', bakery: '🥖', gourmet: '👨‍🍳', plot: '🌱', ruin: '🧱', wild: '🌾'
+  mill: '🏭', bakery: '🥖', gourmet: '👨‍🍳', plot: '🌱', ruin: '🧱', wild: '🌾', merchant: '🏪'
 };
 
 export function drawProductionObjects(scene: Phaser.Scene, store: GameStore, group: Phaser.GameObjects.Group): void {
@@ -12,7 +12,7 @@ export function drawProductionObjects(scene: Phaser.Scene, store: GameStore, gro
   const { world, production } = store.getState();
 
   for (const t of world.tiles) {
-    if (t.kind === 'wild' || t.kind === 'ruin') {
+    if (t.kind === 'wild' || t.kind === 'ruin' || t.kind === 'merchant') {
       const { x, y } = isoToScreen(t.gx, t.gy, GAME_CONFIG.tileWidth, GAME_CONFIG.tileHeight);
       const label = scene.add.text(x, y, EMBLEM[t.kind], { fontSize: '22px' }).setOrigin(0.5).setDepth(y);
       group.add(label);

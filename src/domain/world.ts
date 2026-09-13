@@ -1,5 +1,6 @@
 import { GameState, Tile, WorldMap } from './types';
 import { landCost } from './economy';
+import { generateTile } from './mapgen';
 
 export function tileAt(w: WorldMap, gx: number, gy: number): Tile | undefined {
   if (gx < 0 || gy < 0 || gx >= w.width || gy >= w.height) return undefined;
@@ -35,7 +36,7 @@ export function growWorld(w: WorldMap, ring = 1): void {
       if (ogx >= 0 && ogy >= 0 && ogx < w.width && ogy < w.height) {
         t = { ...(tileAt(w, ogx, ogy)!), gx, gy };
       } else {
-        t = { gx, gy, kind: 'unowned', owned: false };
+        t = generateTile(gx, gy);
       }
       next.push(t);
     }

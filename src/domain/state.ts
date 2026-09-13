@@ -1,4 +1,5 @@
-import { GameState, Tile, TileKind } from './types';
+import { GameState, Tile } from './types';
+import { generateTile } from './mapgen';
 
 export const START_MAP = 12; // 12x12 starting world (expands via land buying)
 
@@ -6,9 +7,8 @@ export function createInitialState(): GameState {
   const tiles: Tile[] = [];
   for (let gy = 0; gy < START_MAP; gy++) {
     for (let gx = 0; gx < START_MAP; gx++) {
-      // a 3x3 starting area around spawn is owned grass; the rest is unowned
-      const owned = gx < 3 && gy < 3;
-      tiles.push({ gx, gy, kind: (owned ? 'grass' : 'unowned') as TileKind, owned });
+      // a 3x3 starting area around spawn is owned grass; the rest is procedurally generated
+      tiles.push(gx < 3 && gy < 3 ? { gx, gy, kind: 'grass', owned: true } : generateTile(gx, gy));
     }
   }
   return {
