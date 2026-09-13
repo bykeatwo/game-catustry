@@ -12,6 +12,7 @@ import { tileAt, isAdjacentToOwned, countOwned } from '../domain/world';
 import { landCost, buildCost } from '../domain/economy';
 import { loadState, saveState } from '../data/store';
 import { MerchantUI } from './MerchantUI';
+import { playSfx, initAudio } from '../audio/audioManager';
 
 const TILE_COLORS: Record<string, number> = {
   grass: 0x6a9a54, unowned: 0x3a3a3a, wild: 0x7ab84a,
@@ -35,6 +36,7 @@ export class GameScene extends Phaser.Scene {
   init(): void { this.store = new GameStore(loadState() ?? createInitialState()); }
 
   create(): void {
+    initAudio();
     makeIsoTileTexture(this);
     makeCatTexture(this);
     this.cursors = this.input.keyboard!.createCursorKeys();
@@ -133,19 +135,34 @@ export class GameScene extends Phaser.Scene {
     if (target?.kind !== 'merchant') this.shop.close();
 
     if (fac) {
-      this.prompt.show(`Work ${fac.type}`, 'Tap to work', () => { this.store.workFacility(state.production.facilities.indexOf(fac)); });
+      this.prompt.show(`Work ${fac.type}`, 'Tap to work', () => {
+        const result = this.store.workFacility(state.production.facilities.indexOf(fac));
+        if (result.ok) playSfx('harvest');
+      });
     } else if (plot && plot.crop) {
-      this.prompt.show(`Work ${plot.crop || 'plot'}`, 'Tap to work', () => { this.store.workPlot(state.production.plots.indexOf(plot)); });
+      this.prompt.show(`Work ${plot.crop}`, 'Tap to work', () => {
+        const result = this.store.workPlot(state.production.plots.indexOf(plot));
+        if (result.ok) playSfx('harvest');
+      });
     } else if (target?.kind === 'merchant') {
       this.prompt.show('Open merchant', 'Trade', () => { this.shop.open(); });
     } else if (target?.kind === 'wild' && target.resource) {
-      this.prompt.show(`Gather ${target.resource}`, 'Gather', () => { this.store.gatherWild(tx, ty); });
+      this.prompt.show(`Gather ${target.resource}`, 'Gather', () => {
+        const result = this.store.gatherWild(tx, ty);
+        if (result.ok) playSfx('gather');
+      });
     } else if (target?.kind === 'ruin' && target.ruinType) {
       const cost = buildCost(target.ruinType);
-      this.prompt.show(`Build ${target.ruinType} — ${cost} 🪙`, 'Build', () => { this.store.buildFacility(tx, ty); });
+      this.prompt.show(`Build ${target.ruinType} — ${cost} 🪙`, 'Build', () => {
+        const result = this.store.buildFacility(tx, ty);
+        if (result.ok) playSfx('build');
+      });
     } else if (target && !target.owned && isAdjacentToOwned(state.world, tx, ty)) {
       const cost = landCost(countOwned(state.world));
-      this.prompt.show(`Buy land — ${cost} 🪙`, 'Buy', () => { this.store.buyLand(tx, ty); });
+      this.prompt.show(`Buy land — ${cost} 🪙`, 'Buy', () => {
+        this.store.buyLand(tx, ty);
+        playSfx('tap');
+      });
     } else {
       this.prompt.hide();
     }

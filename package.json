@@ -11,9 +11,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "howler": "^2.2.4",
     "phaser": "^3.80.0"
   },
   "devDependencies": {
+    "@types/howler": "^2.2.13",
     "@types/node": "^22.20.2",
     "typescript": "^5.4.0",
     "vite": "^5.2.0",

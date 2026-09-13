@@ -1,0 +1,77 @@
+#!/bin/bash
+# One-command game host with cloudflared tunnel
+# Supports hot reload via npm run dev
+# Usage: ./bin/run-cloud
+
+cd "$(dirname "$0")/.."
+
+echo "=========================================="
+echo "  🎮 CAT'S FOOD CHAIN FARM - Dev Mode"
+echo "=========================================="
+echo ""
+
+# Kill any existing servers
+pkill -f "vite" 2>/dev/null || true
+pkill -f "http.server 5173" 2>/dev/null || true
+sleep 1
+
+echo "🚀 Starting dev server (hot reload enabled)..."
+echo "Port: 5173"
+echo ""
+
+# Start vite dev server in background
+npm run dev &
+VITE_PID=$!
+
+# Wait for dev server to start
+echo "⏳ Waiting for server to start..."
+sleep 5
+
+# Check if server is running
+if ! kill -0 $VITE_PID 2>/dev/null; then
+    echo "❌ Dev server failed to start. Check for errors."
+    exit 1
+fi
+
+echo ""
+echo "🔥 Development server is running!"
+echo ""
+
+# Start tunnel
+echo "🌐 Creating cloudflared tunnel..."
+echo "   (This may take a few seconds)"
+echo ""
+
+cloudflared tunnel --url http://localhost:5173 --no-autoupdate 2>&1 | while read line; do
+    echo "$line"
+    
+    # Look for the tunnel URL
+    if echo "$line" | grep -qE "https://[a-z0-9-]+\.trycloudflare\.com"; then
+        URL=$(echo "$line" | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com')
+        echo ""
+        echo "=========================================="
+        echo "🎉 PUBLIC URL: $URL"
+        echo "=========================================="
+        echo ""
+        echo "🎯 Hot reload is ACTIVE"
+        echo "📱 Access on phone: $URL"
+        echo ""
+        echo "💡 Edit source files - changes appear instantly!"
+        echo "📝 Press Ctrl+C to stop"
+    fi
+done &
+
+TUNNEL_PID=$!
+
+# Cleanup on exit
+cleanup() {
+    echo ""
+    echo "🛑 Stopping server and tunnel..."
+    kill $VITE_PID $TUNNEL_PID 2>/dev/null || true
+    exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+
+# Wait for either process
+wait
