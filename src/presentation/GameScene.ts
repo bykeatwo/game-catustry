@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { GAME_CONFIG } from '../config/gameConfig';
 import { isoToScreen, screenToIso } from './iso';
-import { makeIsoTileTexture, makeCatTexture } from './textures';
+import { makeTileTextures, makeCropTextures, makeFacilityTextures, makeEntityTextures, grassTextureKey } from './textures';
+import { makeCatTextures, createCatAnimations } from './catSprite';
 import { JoystickInput } from './JoystickInput';
 import { InteractPrompt } from './InteractPrompt';
 import { drawProductionObjects } from './EntitySprites';
@@ -14,15 +15,11 @@ import { landCost, buildCost } from '../domain/economy';
 import { loadState, saveState } from '../data/store';
 import { MerchantUI } from './MerchantUI';
 import { PlantUI } from './PlantUI';
-import { playSfx, initAudio } from '../audio/audioManager';
+import { playSfx, initAudio, startBGM } from '../audio/audioManager';
+import { initEffects } from './particles';
 import { facilityAt } from '../domain/actions';
 import { FACILITY_SIZE } from '../domain/types';
 import { errorMessage } from './messages';
-
-const TILE_COLORS: Record<string, number> = {
-  grass: 0x6a9a54, unowned: 0x3a3a3a, wild: 0x7ab84a,
-  ruin: 0x8a6a3a, merchant: 0xc9a227, water: 0x4a7aa0
-};
 
 const ITEM_EMOJI: Record<string, string> = {
   wheat: '🌾', carrot: '🥕', potato: '🥔', egg: '🥚',
@@ -46,6 +43,11 @@ export class GameScene extends Phaser.Scene {
   private inv!: Phaser.GameObjects.Text;
   private shop!: MerchantUI;
   private plant!: PlantUI;
+  private effects!: ReturnType<typeof initEffects>;
+  private facing: 'side' | 'down' | 'up' = 'side';
+  private workUntil = 0;
+  private stepAccum = 0;
+  private bgmStarted = false;
 
   constructor() { super('GameScene'); }
 
@@ -53,8 +55,12 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     initAudio();
-    makeIsoTileTexture(this);
-    makeCatTexture(this);
+    makeTileTextures(this);
+    makeCropTextures(this);
+    makeFacilityTextures(this);
+    makeEntityTextures(this);
+    makeCatTextures(this);
+    createCatAnimations(this);
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.wasd = this.input.keyboard!.addKeys('W,A,S,D') as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
     this.joystick = new JoystickInput(this);
@@ -75,6 +81,16 @@ export class GameScene extends Phaser.Scene {
     this.renderWorld();
     this.createCat();
     this.cameras.main.setBounds(-2000, -2000, 4000, 4000);
+
+    // particle effects
+    this.effects = initEffects(this);
+
+    // start ambient music on the first user gesture (autoplay is blocked otherwise)
+    const startOnce = () => {
+      if (!this.bgmStarted) { this.bgmStarted = true; startBGM(); }
+    };
+    this.input.on('pointerdown', startOnce);
+    this.input.keyboard!.on('keydown', startOnce);
 
     // autosave: debounced on change + periodic fallback
     let saveTimer: number | undefined;
@@ -98,12 +114,12 @@ export class GameScene extends Phaser.Scene {
       const { x, y } = isoToScreen(tile.gx, tile.gy, GAME_CONFIG.tileWidth, GAME_CONFIG.tileHeight);
       let img = this.tileSprites.get(key);
       if (!img) {
-        img = this.add.image(0, 0, 'isoTile');
+        img = this.add.image(0, 0, 'iso-grass-0');
         this.tileSprites.set(key, img);
       }
+      img.setTexture(tile.owned ? grassTextureKey(tile.gx, tile.gy) : 'iso-unowned');
       img.setPosition(x, y);
       img.setDepth(Z_FLOOR);
-      img.setTint(tile.owned ? TILE_COLORS[tile.kind] ?? 0x6a9a54 : 0x3a3a3a);
     }
     for (const [key, img] of this.tileSprites) if (!seen.has(key)) { img.destroy(); this.tileSprites.delete(key); }
 
@@ -114,8 +130,16 @@ export class GameScene extends Phaser.Scene {
   private createCat(): void {
     const p = this.store.getState().world.player;
     const { x, y } = isoToScreen(p.gx, p.gy, GAME_CONFIG.tileWidth, GAME_CONFIG.tileHeight);
-    this.cat = this.add.sprite(x, y, 'cat');
+    this.cat = this.add.sprite(x, y, 'cat').setOrigin(0.5, 1);
+    this.cat.play('cat-idle-side');
   }
+
+  private playCat(anim: string, flipX: boolean): void {
+    if (this.cat.flipX !== flipX) this.cat.setFlipX(flipX);
+    if (this.cat.anims.currentAnim?.key !== anim) this.cat.play(anim, true);
+  }
+
+  private playPaw(): void { this.workUntil = Date.now() + 350; }
 
   private refreshHUD(): void {
     const s = this.store.getState().production;
@@ -154,8 +178,26 @@ export class GameScene extends Phaser.Scene {
       const step = (GAME_CONFIG.playerSpeed * delta) / 1000 / len;
       this.cat.x += dx * step;
       this.cat.y += dy * step;
+
+      this.stepAccum += step;
+      if (this.stepAccum > 24) { this.stepAccum = 0; playSfx('footstep'); }
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        this.facing = 'side';
+        this.playCat('cat-walk-side', dx < 0);
+      } else if (dy > 0) {
+        this.facing = 'down';
+        this.playCat('cat-walk-down', false);
+      } else {
+        this.facing = 'up';
+        this.playCat('cat-walk-up', false);
+      }
+    } else if (Date.now() < this.workUntil) {
+      this.playCat('cat-work', this.cat.flipX);
+    } else {
+      this.playCat(`cat-idle-${this.facing}`, this.facing === 'side' ? this.cat.flipX : false);
     }
-    this.cat.setDepth(this.cat.y + 0.5);
+    this.cat.setDepth(this.cat.y + 1.5);
     this.cameras.main.centerOn(this.cat.x, this.cat.y);
 
     // energy regen
@@ -180,8 +222,13 @@ export class GameScene extends Phaser.Scene {
       this.prompt.show(`Work ${fac.type}${prog}`, 'Tap to work', () => {
         const r = this.store.workFacility(idx);
         if (r.ok) {
-          if (r.produced) { playSfx('harvest'); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced] ?? ''} +1`); }
+          if (r.produced) {
+            playSfx('harvest');
+            this.effects.harvest.emit(this.cat.x, this.cat.y);
+            this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced]} +1`);
+          }
           else { playSfx('tap'); this.floatText(this.cat.x, this.cat.y, '+1'); }
+          this.playPaw();
         } else { this.showError(r.reason); }
       });
     } else if (plot && plot.crop) {
@@ -189,8 +236,13 @@ export class GameScene extends Phaser.Scene {
       this.prompt.show(`Work ${plot.crop} — ${plot.progress}/${ITEMS[plot.crop].taps}`, 'Tap to work', () => {
         const r = this.store.workPlot(idx);
         if (r.ok) {
-          if (r.produced) { playSfx('harvest'); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced] ?? ''} +1`); }
+          if (r.produced) {
+            playSfx('harvest');
+            this.effects.harvest.emit(this.cat.x, this.cat.y);
+            this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced] ?? ''} +1`);
+          }
           else { playSfx('tap'); this.floatText(this.cat.x, this.cat.y, '+1'); }
+          this.playPaw();
         } else { this.showError(r.reason); }
       });
     } else if (plot && !plot.crop) {
@@ -200,21 +252,26 @@ export class GameScene extends Phaser.Scene {
     } else if (target?.kind === 'wild' && target.resource) {
       this.prompt.show(`Gather ${target.resource}`, 'Gather', () => {
         const r = this.store.gatherWild(tx, ty);
-        if (r.ok) { playSfx('gather'); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced ?? ''] ?? ''} +1`); }
+        if (r.ok) { playSfx('gather'); this.playPaw(); this.floatText(this.cat.x, this.cat.y, `${ITEM_EMOJI[r.produced ?? ''] ?? ''} +1`); }
         else { this.showError(r.reason); }
       });
     } else if (target?.kind === 'ruin' && target.ruinType) {
       const cost = buildCost(target.ruinType) * FACILITY_SIZE * FACILITY_SIZE;
       this.prompt.show(`Build ${target.ruinType} (2×2) — ${cost} 🪙`, 'Build', () => {
         const r = this.store.buildFacility(tx, ty);
-        if (r.ok) { playSfx('build'); this.floatText(this.cat.x, this.cat.y, `Built ${target.ruinType}!`); }
+        if (r.ok) {
+          playSfx('build');
+          this.effects.build.emit(this.cat.x, this.cat.y);
+          this.playPaw();
+          this.floatText(this.cat.x, this.cat.y, `Built ${target.ruinType}!`);
+        }
         else { this.showError(r.reason); }
       });
     } else if (target && !target.owned && isAdjacentToOwned(state.world, tx, ty)) {
       const cost = landCost(countOwned(state.world));
       this.prompt.show(`Buy land — ${cost} 🪙`, 'Buy', () => {
         const r = this.store.buyLand(tx, ty);
-        if (r.ok) playSfx('tap');
+        if (r.ok) { playSfx('coin'); this.playPaw(); }
         else this.showError(r.reason);
       });
     } else {

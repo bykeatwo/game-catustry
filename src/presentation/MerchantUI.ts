@@ -3,6 +3,7 @@ import { ITEMS } from '../domain/items';
 import { seedCost } from '../domain/economy';
 import { CropId, ItemId } from '../domain/types';
 import { errorMessage } from './messages';
+import { playSfx } from '../audio/audioManager';
 
 export class MerchantUI {
   private root = document.getElementById('shop')!;
@@ -35,7 +36,8 @@ export class MerchantUI {
     }));
     this.sellEl.querySelectorAll('button[data-sell]').forEach(b => b.addEventListener('click', () => {
       const r = this.store.sellItem(b.getAttribute('data-sell')! as ItemId);
-      if (!r.ok) this.statusEl.textContent = errorMessage(r.reason);
+      if (r.ok) playSfx('coin');
+      else this.statusEl.textContent = errorMessage(r.reason);
     }));
   }
 }

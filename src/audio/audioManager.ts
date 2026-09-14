@@ -1,7 +1,7 @@
 import { Howl } from 'howler';
 
 // Define sound categories
-type SfxType = 'tap' | 'harvest' | 'gather' | 'build' | 'levelup' | 'close';
+type SfxType = 'tap' | 'harvest' | 'gather' | 'build' | 'levelup' | 'close' | 'coin' | 'footstep';
 
 // Strong typing for our audio assets
 interface SoundAssets {
@@ -35,6 +35,14 @@ export const audio: SoundAssets = {
     close: new Howl({
       src: ['assets/sfx/close.mp3', 'assets/sfx/close.ogg'],
       volume: 0.5
+    }),
+    coin: new Howl({
+      src: ['assets/sfx/coin.mp3', 'assets/sfx/coin.ogg'],
+      volume: 0.6
+    }),
+    footstep: new Howl({
+      src: ['assets/sfx/footstep.mp3', 'assets/sfx/footstep.ogg'],
+      volume: 0.28
     })
   },
   muted: false
@@ -93,3 +101,7 @@ export class BGMManager {
 }
 
 export const bgm = new BGMManager();
+
+export function startBGM(): void {
+  bgm.play('assets/music/ambient.ogg', true, 0.32);
+}
