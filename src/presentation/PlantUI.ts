@@ -1,4 +1,6 @@
 import { GameStore } from '../state/store';
+// Plant UI - CROP_EMOJI maps to crop sprites for seed selection buttons
+// TODO: Replace emoji with sprite indicators when assets are ready
 import { CropId } from '../domain/types';
 import { errorMessage } from './messages';
 

@@ -1,4 +1,6 @@
 import { GameStore } from '../state/store';
+// Merchant UI - uses emoji in HTML templates for visual indicators
+// TODO: Replace 🏪, 🪙, 🌰 emojis with sprite-based UI elements
 import { ITEMS } from '../domain/items';
 import { seedCost } from '../domain/economy';
 import { CropId, ItemId } from '../domain/types';
